@@ -1,241 +1,467 @@
-import { useMemo, useState } from 'react';
-import { Link, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
-import { Bell, Bot, BriefcaseBusiness, Check, ChevronDown, ChevronRight, ClipboardList, Image, LayoutDashboard, Menu, MessageCircle, MessageSquare, MonitorSmartphone, Package, Plus, Send, Settings2, ShieldCheck, Sparkles, Wrench, X, Megaphone, CircleHelp, ArrowUpRight, Clock3, WandSparkles, Search, UserRound } from 'lucide-react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
+import { publishableKeyFromHost } from '@clerk/react/internal';
+import { shadcn } from '@clerk/themes';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
+import {
+  ArrowUpRight, Bot, BriefcaseBusiness, Check, ChevronRight, ClipboardList,
+  Clock3, Image, LayoutDashboard, Menu, MessageCircle, MessageSquare, Megaphone,
+  MonitorSmartphone, Package, Plus, Search, Send, Settings2, ShieldCheck, Sparkles,
+  WandSparkles, Wrench, X,
+} from 'lucide-react';
+import {
+  getListAnnouncementsQueryKey, getListConversationMessagesQueryKey,
+  getListConversationsQueryKey, getListOrdersQueryKey, getListServicesQueryKey,
+  useCreateAnnouncement, useCreateOrder, useGetCurrentUser, useListAnnouncements,
+  useListConversationMessages, useListConversations, useListOrders, useListServices,
+  useOpenConversation, useSendConversationMessage, useUpdateOrder, useUpdateService,
+} from '@workspace/api-client-react';
+import type { Announcement, Conversation, ConversationMessage, Order, Service, UserProfile } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
-import { type ReactNode, type FormEvent } from 'react';
 
-type Role = 'customer' | 'owner';
-type ChatMessage = { from: 'customer' | 'owner'; text: string; time: string; pending?: boolean };
-type Chat = { id: string; name: string; initials: string; context: string; messages: ChatMessage[] };
-type Service = { id: string; name: string; category: string; description: string; price: string; icon: typeof Image; available: boolean };
-type Order = { id: string; service: string; customer: string; date: string; status: string };
 const queryClient = new QueryClient();
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+function stripBase(path: string) {
+  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
+}
+const clerkAppearance = {
+  theme: shadcn,
+  cssLayerName: 'clerk',
+  options: {
+    logoPlacement: 'inside' as const,
+    logoLinkUrl: basePath || '/',
+    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
+  },
+  variables: {
+    colorPrimary: '#50c9f5', colorForeground: '#e8eef9', colorMutedForeground: '#93a1b8',
+    colorDanger: '#fb7185', colorBackground: '#101a2c', colorInput: '#0b1425',
+    colorInputForeground: '#e8eef9', colorNeutral: '#34425a', fontFamily: '"DM Sans", sans-serif',
+    borderRadius: '0.8rem',
+  },
+  elements: {
+    rootBox: 'w-full flex justify-center',
+    cardBox: 'bg-[#101a2c] rounded-2xl w-[440px] max-w-full overflow-hidden border border-[#2b3b56]',
+    card: '!shadow-none !border-0 !bg-transparent !rounded-none',
+    footer: '!shadow-none !border-0 !bg-transparent !rounded-none',
+    headerTitle: 'text-[#f2f6ff] font-semibold',
+    headerSubtitle: 'text-[#aab8ce]',
+    socialButtonsBlockButtonText: 'text-[#e8eef9] font-medium',
+    formFieldLabel: 'text-[#c6d2e5]',
+    footerActionLink: 'text-[#69d4ff] font-semibold',
+    footerActionText: 'text-[#aab8ce]',
+    dividerText: 'text-[#93a1b8]',
+    identityPreviewEditButton: 'text-[#69d4ff]',
+    formFieldSuccessText: 'text-[#76e2c0]',
+    alertText: 'text-[#ffd3dc]',
+    logoBox: 'rounded-xl overflow-hidden',
+    logoImage: 'rounded-xl',
+    socialButtonsBlockButton: 'border border-[#34425a] bg-[#142139] hover:bg-[#1a2a45]',
+    formButtonPrimary: 'font-semibold text-[#071321]',
+    formFieldInput: 'border-[#34425a] bg-[#0b1425] text-[#e8eef9]',
+    footerAction: 'border-t border-[#2b3b56]',
+    dividerLine: 'bg-[#34425a]',
+    alert: 'border-[#653444] bg-[#2b1923]',
+    otpCodeFieldInput: 'border-[#34425a] bg-[#0b1425] text-[#e8eef9]',
+    formFieldRow: 'text-[#e8eef9]',
+    main: 'text-[#e8eef9]',
+  },
+};
+
 const nav = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, owner: false },
-  { path: '/messages', label: 'Messages', icon: MessageCircle, owner: false },
-  { path: '/services', label: 'Services', icon: BriefcaseBusiness, owner: false },
-  { path: '/orders', label: 'Orders', icon: Package, owner: false },
-  { path: '/announcements', label: 'Announcements', icon: Megaphone, owner: false },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/messages', label: 'Messages', icon: MessageCircle },
+  { path: '/services', label: 'Services', icon: BriefcaseBusiness },
+  { path: '/orders', label: 'Orders', icon: Package },
+  { path: '/announcements', label: 'Announcements', icon: Megaphone },
   { path: '/assistant', label: 'AI assistant', icon: Bot, owner: true },
   { path: '/owner', label: 'Owner workspace', icon: Settings2, owner: true },
 ];
-const seedChats: Chat[] = [
-  { id: 'c1', name: 'Amara Johnson', initials: 'AJ', context: 'Brand identity', messages: [
-    { from: 'customer', text: 'Hi, I’m looking for a fresh logo for my bakery. Do you work with small businesses?', time: '10:24 AM' },
-    { from: 'owner', text: 'Absolutely. We love helping independent brands find their visual voice. Do you have a style in mind?', time: '10:31 AM' },
-    { from: 'customer', text: 'Warm but modern, maybe something with a simple wheat mark.', time: '10:36 AM' },
-  ] },
-  { id: 'c2', name: 'Kwame Mensah', initials: 'KM', context: 'Phone repair', messages: [
-    { from: 'customer', text: 'My phone screen is cracked. Can I bring it in this week?', time: 'Yesterday' },
-    { from: 'owner', text: 'Yes. Share your device model and I’ll confirm parts and timing.', time: 'Yesterday' },
-  ] },
-  { id: 'c3', name: 'Nia Campbell', initials: 'NC', context: 'Photo editing', messages: [
-    { from: 'customer', text: 'Could you retouch a set of product photos for my shop?', time: 'Mon' },
-    { from: 'owner', text: 'Of course. Send a few sample images and the look you want.', time: 'Mon' },
-  ] },
-];
-const seedServices: Service[] = [
-  { id: 'design', name: 'Graphic design', category: 'Brand & design', description: 'Logos, flyers, social graphics and brand systems that make your business memorable.', price: 'From $45', icon: Image, available: true },
-  { id: 'editing', name: 'Photo editing', category: 'Photo & media', description: 'Thoughtful retouching, clean color work and polished product imagery.', price: 'From $18', icon: WandSparkles, available: true },
-  { id: 'repair', name: 'Phone repairs', category: 'Device support', description: 'Screen, charging port and software support for everyday devices.', price: 'Quote first', icon: Wrench, available: true },
-];
-const seedOrders: Order[] = [
-  { id: 'OK-2387', service: 'Brand identity starter', customer: 'Amara Johnson', date: 'Jun 18, 2025', status: 'In progress' },
-  { id: 'OK-2381', service: 'Screen replacement', customer: 'Kwame Mensah', date: 'Jun 16, 2025', status: 'Pending' },
-  { id: 'OK-2369', service: 'Product photo retouch', customer: 'Nia Campbell', date: 'Jun 12, 2025', status: 'Completed' },
-];
-const seedAnnouncements = [
-  { id: 'a1', title: 'A little something for your next project', body: 'Enjoy 10% off graphic design bookings through the end of this month.', date: 'June 14, 2025' },
-  { id: 'a2', title: 'Phone repair appointments', body: 'A few repair slots have opened for this week. Send us a message to check your device.', date: 'June 10, 2025' },
-];
+type Role = UserProfile['role'];
+type DraftMode = 'reply' | 'summary' | 'requests';
+type WorkspaceProps = {
+  profile: UserProfile;
+  identity: string;
+};
 
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><RoutedErrorBoundary><Switch>
-    <Route path="/dashboard"><Workspace /></Route><Route path="/messages"><Workspace /></Route><Route path="/services"><Workspace /></Route><Route path="/orders"><Workspace /></Route><Route path="/announcements"><Workspace /></Route><Route path="/assistant"><Workspace /></Route><Route path="/owner"><Workspace /></Route><Route path="/"><Workspace /></Route><Route component={NotFound} />
-  </Switch></RoutedErrorBoundary></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return <TooltipProvider><WouterRouter base={basePath}><ClerkRoutes /></WouterRouter><Toaster /></TooltipProvider>;
 }
-function RoutedErrorBoundary({ children }: { children: ReactNode }) { const [location] = useLocation(); return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>; }
+function ClerkRoutes() {
+  const [, setLocation] = useLocation();
+  return <ClerkProvider
+    publishableKey={clerkPubKey}
+    proxyUrl={clerkProxyUrl}
+    appearance={clerkAppearance}
+    signInUrl={`${basePath}/sign-in`}
+    signUpUrl={`${basePath}/sign-up`}
+    localization={{
+      signIn: { start: { title: 'Welcome back', subtitle: 'Your work, conversations and updates in one place.' } },
+      signUp: { start: { title: 'Join Okenova', subtitle: 'Create your customer account to get started.' } },
+    }}
+    routerPush={(to) => setLocation(stripBase(to))}
+    routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+  >
+    <QueryClientProvider client={queryClient}>
+      <ClerkCacheSync />
+      <RoutedErrorBoundary><Switch>
+        <Route path="/" component={PublicLanding} />
+        <Route path="/sign-in/*?" component={SignInPage} />
+        <Route path="/sign-up/*?" component={SignUpPage} />
+        <Route path="/dashboard"><ProtectedWorkspace /></Route>
+        <Route path="/messages"><ProtectedWorkspace /></Route>
+        <Route path="/services"><ProtectedWorkspace /></Route>
+        <Route path="/orders"><ProtectedWorkspace /></Route>
+        <Route path="/announcements"><ProtectedWorkspace /></Route>
+        <Route path="/assistant"><ProtectedWorkspace /></Route>
+        <Route path="/owner"><ProtectedWorkspace /></Route>
+        <Route component={NotFound} />
+      </Switch></RoutedErrorBoundary>
+    </QueryClientProvider>
+  </ClerkProvider>;
+}
+function ClerkCacheSync() {
+  const { addListener } = useClerk();
+  const client = useQueryClient();
+  useEffect(() => {
+    let previous: string | null | undefined;
+    return addListener(({ user }) => {
+      const next = user?.id ?? null;
+      if (previous !== undefined && previous !== next) client.clear();
+      previous = next;
+    });
+  }, [addListener, client]);
+  return null;
+}
+function RoutedErrorBoundary({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+}
+function PublicLanding() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
+  return <div className="app-shell min-h-[100dvh] text-slate-100">
+    <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-6 sm:px-8"><Brand/><div className="flex items-center gap-2"><Link href="/sign-in" className="btn-quiet rounded-xl px-4 py-2.5 text-xs font-semibold">Sign in</Link><Link href="/sign-up" className="btn-primary rounded-xl px-4 py-2.5 text-xs">Create account</Link></div></header>
+    <main className="mx-auto max-w-7xl px-5 pb-20 pt-10 sm:px-8 sm:pt-20">
+      <section className="relative overflow-hidden rounded-[28px] border border-sky-300/15 bg-gradient-to-br from-[#102341] via-[#111c34] to-[#1a1532] px-6 py-12 sm:px-12 sm:py-16">
+        <div className="absolute -right-16 -top-24 h-96 w-96 rounded-full border border-sky-300/10"/><div className="absolute right-20 top-14 h-52 w-52 rounded-full border border-violet-300/10"/>
+        <div className="relative max-w-3xl"><span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.18em] text-sky-200">Okenstyles Graphics And Tech</span>
+          <h1 className="display mt-7 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-[-.055em] sm:text-6xl">Your next idea<br/><span className="text-sky-300">starts with a real connection.</span></h1>
+          <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300/80 sm:text-base">Creative services, device support and a direct line to the people doing the work. Everything you need, without the runaround.</p>
+          <div className="mt-8 flex flex-wrap gap-3"><Link href="/sign-up" className="btn-primary inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm">Get started <ArrowUpRight size={16}/></Link><Link href="/sign-in" className="btn-quiet inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-200">I already have an account <ChevronRight size={15}/></Link></div>
+        </div>
+        <div className="relative mt-12 grid gap-3 sm:grid-cols-3">
+          {[['01','Creative work','Brand identity, graphics and thoughtful photo editing.'],['02','Everyday tech','Practical support to get your devices working again.'],['03','One private thread','Talk directly with the business owner.']].map(([n,title,copy])=><div key={n} className="rounded-2xl border border-white/[.08] bg-[#091426]/55 p-5 backdrop-blur"><div className="font-mono text-xs text-sky-300">{n}</div><h2 className="display mt-3 text-lg font-semibold">{title}</h2><p className="mb-0 mt-2 text-xs leading-relaxed text-slate-400">{copy}</p></div>)}
+        </div>
+      </section>
+      <section className="grid gap-8 py-16 sm:grid-cols-[.8fr_1.2fr] sm:py-24"><div><div className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300">A simpler way to get it done</div><h2 className="display mt-3 text-3xl font-semibold leading-tight tracking-tight">Good work starts with a clear conversation.</h2></div><div className="grid gap-4 sm:grid-cols-2">{[['Choose a service','Explore the available services and send the details that matter.'],['Keep everything close','Orders, updates and messages stay together in your account.']].map(([t,c])=><div key={t} className="panel p-5"><h3 className="display text-base font-semibold">{t}</h3><p className="mb-0 mt-2 text-xs leading-relaxed text-slate-400">{c}</p></div>)}</div></section>
+      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[.08] py-6 text-xs text-slate-500"><Brand/><span>Private conversations. No online or last-seen indicators.</span></footer>
+    </main>
+  </div>;
+}
+function AuthFrame({ children }: { children: ReactNode }) {
+  return <div className="app-shell flex min-h-[100dvh] flex-col items-center justify-center gap-7 px-4 py-8"><Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"><Brand/></Link>{children}<p className="max-w-sm text-center text-[11px] leading-relaxed text-slate-500">Okenova keeps your business conversations private and connected to your account.</p></div>;
+}
+function SignInPage() {
+  return <AuthFrame><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`}/></AuthFrame>;
+}
+function SignUpPage() {
+  return <AuthFrame><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`}/></AuthFrame>;
+}
+function ProtectedWorkspace() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) return <LoadingScreen label="Checking your session"/>;
+  if (!isSignedIn) return <Redirect to="/"/>;
+  return <WorkspaceLoader/>;
+}
+function WorkspaceLoader() {
+  const { user } = useUser();
+  const profileQuery = useGetCurrentUser();
+  if (profileQuery.isLoading) return <LoadingScreen label="Loading your workspace"/>;
+  if (profileQuery.isError || !profileQuery.data) return <QueryError message="We couldn't load your account profile." retry={() => void profileQuery.refetch()}/>;
+  return <Workspace profile={profileQuery.data} identity={user?.fullName || user?.primaryEmailAddress?.emailAddress || 'Your account'}/>;
+}
+function LoadingScreen({ label }: { label: string }) {
+  return <div className="app-shell flex min-h-[100dvh] items-center justify-center p-6"><div className="panel w-full max-w-md p-6"><div className="h-3 w-24 animate-pulse rounded bg-sky-300/20"/><div className="mt-5 h-7 w-3/4 animate-pulse rounded bg-white/[.08]"/><div className="mt-3 h-3 w-full animate-pulse rounded bg-white/[.06]"/><p className="mb-0 mt-5 text-xs text-slate-500">{label}</p></div></div>;
+}
+function QueryError({ message, retry }: { message: string; retry: () => void }) {
+  return <div className="app-shell flex min-h-[100dvh] items-center justify-center p-6"><section className="panel max-w-md p-7 text-center"><ShieldCheck className="mx-auto text-rose-300" size={24}/><h1 className="display mt-4 text-xl font-semibold">A connection hiccup</h1><p className="mt-2 text-sm text-slate-400">{message}</p><button onClick={retry} className="btn-primary mt-4 rounded-xl px-4 py-2.5 text-xs">Try again</button></section></div>;
+}
 
-function Workspace() {
+function Workspace({ profile, identity }: WorkspaceProps) {
   const [path, setPath] = useLocation();
-  const [role, setRole] = useState<Role>('customer');
-  const [chats, setChats] = useState<Chat[]>(seedChats);
-  const [activeChat, setActiveChat] = useState('c1');
+  const [activeConversationId, setActiveConversationId] = useState('');
   const [messageInput, setMessageInput] = useState('');
-  const [services, setServices] = useState<Service[]>(seedServices);
-  const [orders, setOrders] = useState<Order[]>(seedOrders);
-  const [requests, setRequests] = useState<string[]>(['Logo refresh · Amara Johnson', 'Screen replacement · Kwame Mensah']);
-  const [announcements, setAnnouncements] = useState(seedAnnouncements);
-  const [announcementTitle, setAnnouncementTitle] = useState('');
-  const [announcementBody, setAnnouncementBody] = useState('');
   const [draft, setDraft] = useState('');
-  const [notice, setNotice] = useState('');
+  const [announceTitle, setAnnounceTitle] = useState('');
+  const [announceBody, setAnnounceBody] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [notice, setNotice] = useState('');
+  const client = useQueryClient();
+  const owner = profile.role === 'owner';
   const currentPath = path === '/' ? '/dashboard' : path;
-  const pageTitle = nav.find(item => item.path === currentPath)?.label ?? 'Dashboard';
-  const selectedChat = chats.find(chat => chat.id === activeChat) ?? chats[0]!;
-  const filteredNav = nav.filter(item => !item.owner || role === 'owner');
-  const showNotice = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(''), 3200); };
-  const changeRole = (next: Role) => { setRole(next); if (next === 'customer') { setActiveChat('c1'); if (['/assistant', '/owner'].includes(currentPath)) setPath('/dashboard'); } };
-  const visibleChats = role === 'owner' ? chats : chats.filter(chat => chat.id === 'c1');
-  const visibleSelectedChat = visibleChats.find(chat => chat.id === activeChat) ?? visibleChats[0]!;
+  const title = nav.find((item) => item.path === currentPath)?.label ?? 'Dashboard';
+  const servicesQuery = useListServices();
+  const conversationsQuery = useListConversations();
+  const ordersQuery = useListOrders();
+  const announcementsQuery = useListAnnouncements();
+  const conversations = conversationsQuery.data ?? [];
+  const activeConversation = conversations.find((item) => item.id === activeConversationId) ?? conversations[0];
+  const messagesQuery = useListConversationMessages(activeConversation?.id ?? '', {
+    query: { enabled: Boolean(activeConversation?.id), queryKey: getListConversationMessagesQueryKey(activeConversation?.id ?? '') },
+  });
+  const createOrder = useCreateOrder();
+  const updateOrder = useUpdateOrder();
+  const updateService = useUpdateService();
+  const createAnnouncement = useCreateAnnouncement();
+  const openConversation = useOpenConversation();
+  const sendMessage = useSendConversationMessage();
+  const services = servicesQuery.data ?? [];
+  const orders = ordersQuery.data ?? [];
+  const announcements = announcementsQuery.data ?? [];
+  const messages = messagesQuery.data ?? [];
+  const filteredNav = nav.filter((item) => !item.owner || owner);
+  const notify = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(''), 3000); };
+  useEffect(() => {
+    if (!owner && ['/assistant', '/owner'].includes(currentPath)) setPath('/dashboard', { replace: true });
+  }, [owner, currentPath, setPath]);
+  if (currentPath === '/assistant' || currentPath === '/owner') {
+    if (!owner) return <LoadingScreen label="Opening your workspace"/>;
+  }
+  const invalidate = async (...keys: (readonly unknown[])[]) => {
+    await Promise.all(keys.map((queryKey) => client.invalidateQueries({ queryKey })));
+  };
+  const startConversation = () => openConversation.mutate(undefined, {
+    onSuccess: async (conversation) => {
+      setActiveConversationId(conversation.id);
+      await invalidate(getListConversationsQueryKey(), getListConversationMessagesQueryKey(conversation.id));
+      setPath('/messages');
+      notify('Your private conversation is ready.');
+    },
+    onError: () => notify('Unable to open a conversation right now. Please try again.'),
+  });
   const submitMessage = (event: FormEvent) => {
     event.preventDefault();
-    if (!messageInput.trim() || !visibleSelectedChat) return;
-    const from = role === 'owner' ? 'owner' : 'customer';
-    setChats(prev => prev.map(chat => chat.id === activeChat ? { ...chat, messages: [...chat.messages, { from, text: messageInput.trim(), time: 'Just now' }] } : chat));
-    setMessageInput(''); showNotice('Demo message added to this private customer ↔ business conversation. Nothing was sent online.');
+    if (!activeConversation || !messageInput.trim()) return;
+    const body = messageInput.trim();
+    sendMessage.mutate({ conversationId: activeConversation.id, data: { body } }, {
+      onSuccess: async () => {
+        setMessageInput('');
+        await invalidate(getListConversationMessagesQueryKey(activeConversation.id), getListConversationsQueryKey());
+      },
+      onError: () => notify('Your message could not be sent. Please try again.'),
+    });
   };
-  const requestService = (service: Service) => {
-    setRequests(prev => [`${service.name} · Demo request`, ...prev]);
-    showNotice(`Demo request for ${service.name} added locally. The business has not been contacted.`);
-  };
-  const setOrderStatus = (id: string, status: string) => { setOrders(prev => prev.map(order => order.id === id ? { ...order, status } : order)); showNotice(`Demo order ${id} marked ${status.toLowerCase()}.`); };
-  const toggleService = (id: string) => setServices(prev => prev.map(service => service.id === id ? { ...service, available: !service.available } : service));
-  const publishAnnouncement = (event: FormEvent) => {
+  const changeOrderStatus = (orderId: string, status: Order['status']) => updateOrder.mutate({ orderId, data: { status } }, {
+    onSuccess: () => void invalidate(getListOrdersQueryKey()),
+    onError: () => notify('Order status could not be updated.'),
+  });
+  const changeService = (service: Service) => updateService.mutate({ serviceId: service.id, data: { available: !service.available } }, {
+    onSuccess: () => void invalidate(getListServicesQueryKey()),
+    onError: () => notify('Service availability could not be updated.'),
+  });
+  const submitAnnouncement = (event: FormEvent) => {
     event.preventDefault();
-    if (!announcementTitle.trim() || !announcementBody.trim()) return;
-    setAnnouncements(prev => [{ id: `a${Date.now()}`, title: announcementTitle.trim(), body: announcementBody.trim(), date: 'Just now · demo' }, ...prev]);
-    setAnnouncementTitle(''); setAnnouncementBody(''); showNotice('Announcement published to local demo state only.');
+    if (!announceTitle.trim() || !announceBody.trim()) return;
+    createAnnouncement.mutate({ data: { title: announceTitle.trim(), body: announceBody.trim() } }, {
+      onSuccess: async () => {
+        setAnnounceTitle(''); setAnnounceBody('');
+        await invalidate(getListAnnouncementsQueryKey());
+        notify('Announcement published.');
+      },
+      onError: () => notify('Announcement could not be published.'),
+    });
   };
-  const createDraft = (mode: 'reply' | 'summary' | 'requests') => {
-    if (mode === 'reply') setDraft('Thanks for sharing your ideas, Amara. A warm, modern direction with a simple wheat mark sounds lovely. I can put together a few concepts for you to review.');
-    if (mode === 'summary') setDraft('Amara is exploring a fresh bakery logo: warm and modern, with a simple wheat mark. Next step: confirm the project scope and share a first concept direction.');
-    if (mode === 'requests') setDraft(`Request overview\n• ${requests.length} demo requests are in the queue\n• First up: ${requests[0] ?? 'No demo requests yet'}\n• Confirm scope and timing before moving a request forward.`);
-    showNotice('Sample text created locally. Review and edit before approving.');
+  const draftSample = (mode: DraftMode) => {
+    const conversationText = messages.map((item) => item.body).slice(-3).join(' ');
+    if (mode === 'reply') setDraft(`Thanks for reaching out. ${conversationText ? `I’ve reviewed your note: “${conversationText.slice(0, 140)}${conversationText.length > 140 ? '…' : ''}” ` : ''}I’ll take a closer look and get back to you with the next steps.`);
+    if (mode === 'summary') setDraft(conversationText ? `Recent conversation: ${conversationText}` : 'No messages in this conversation yet. Start with the customer’s goals, then confirm the next step.');
+    if (mode === 'requests') setDraft(`There are ${orders.length} orders in the workspace. Review the order details and confirm scope and timing before making changes.`);
   };
   const approveDraft = () => {
-    if (!draft.trim() || !selectedChat) return;
-    setChats(prev => prev.map(chat => chat.id === activeChat ? { ...chat, messages: [...chat.messages, { from: 'owner', text: draft.trim(), time: 'Just now', pending: false }] } : chat));
-    setDraft(''); showNotice('Approved to local demo conversation only. This reply was not actually sent.');
+    if (!draft.trim() || !activeConversation) return;
+    sendMessage.mutate({ conversationId: activeConversation.id, data: { body: draft.trim() } }, {
+      onSuccess: async () => {
+        setDraft('');
+        await invalidate(getListConversationMessagesQueryKey(activeConversation.id), getListConversationsQueryKey());
+        notify('Approved draft sent to this conversation.');
+      },
+      onError: () => notify('The approved draft could not be sent. Please retry.'),
+    });
   };
-  const page = useMemo(() => {
-    const props = { role, chats:visibleChats, selectedChat:visibleSelectedChat, activeChat, setActiveChat, messageInput, setMessageInput, submitMessage, services, requestService, orders, setOrderStatus, announcements, announcementTitle, setAnnouncementTitle, announcementBody, setAnnouncementBody, publishAnnouncement, draft, setDraft, createDraft, approveDraft, requests: role === 'owner' ? requests : requests.slice(0, 1), toggleService, showNotice, setPath };
+  const page = () => {
     switch (currentPath) {
-      case '/messages': return <Messages {...props} />;
-      case '/services': return <ServicesPage {...props} />;
-      case '/orders': return <OrdersPage {...props} />;
-      case '/announcements': return <AnnouncementsPage {...props} />;
-      case '/assistant': return role === 'owner' ? <AssistantPage {...props} /> : <Restricted />;
-      case '/owner': return role === 'owner' ? <OwnerPage {...props} /> : <Restricted />;
-      default: return <Dashboard {...props} />;
+      case '/messages': return <MessagesPage role={profile.role} conversations={conversations} active={activeConversation} messages={messages} messagesLoading={messagesQuery.isLoading} messagesError={messagesQuery.isError} retryMessages={() => void messagesQuery.refetch()} activeId={activeConversation?.id ?? ''} selectConversation={setActiveConversationId} input={messageInput} setInput={setMessageInput} submit={submitMessage} sending={sendMessage.isPending} openConversation={startConversation} opening={openConversation.isPending} conversationsLoading={conversationsQuery.isLoading} conversationsError={conversationsQuery.isError} retryConversations={() => void conversationsQuery.refetch()}/>;
+      case '/services': return <ServicesPage services={services} loading={servicesQuery.isLoading} error={servicesQuery.isError} retry={() => void servicesQuery.refetch()} createOrder={(serviceId, details) => createOrder.mutate({ data: { serviceId, details } }, { onSuccess: async () => { await invalidate(getListOrdersQueryKey()); notify('Your service request was sent.'); }, onError: () => notify('The request could not be created.') })} creatingOrder={createOrder.isPending}/>;
+      case '/orders': return <OrdersPage orders={orders} role={profile.role} loading={ordersQuery.isLoading} error={ordersQuery.isError} retry={() => void ordersQuery.refetch()} changeStatus={changeOrderStatus} saving={updateOrder.isPending}/>;
+      case '/announcements': return <AnnouncementsPage role={profile.role} announcements={announcements} loading={announcementsQuery.isLoading} error={announcementsQuery.isError} retry={() => void announcementsQuery.refetch()} title={announceTitle} setTitle={setAnnounceTitle} body={announceBody} setBody={setAnnounceBody} submit={submitAnnouncement} publishing={createAnnouncement.isPending}/>;
+      case '/assistant': return <AssistantPage conversations={conversations} active={activeConversation} messages={messages} draft={draft} setDraft={setDraft} createDraft={draftSample} approve={approveDraft} sending={sendMessage.isPending}/>;
+      case '/owner': return <OwnerPage services={services} orders={orders} announcements={announcements} conversations={conversations} servicesLoading={servicesQuery.isLoading} servicesError={servicesQuery.isError} retryServices={() => void servicesQuery.refetch()} ordersLoading={ordersQuery.isLoading} ordersError={ordersQuery.isError} retryOrders={() => void ordersQuery.refetch()} changeService={changeService} changeOrderStatus={changeOrderStatus} savingService={updateService.isPending} savingOrder={updateOrder.isPending}/>;
+      default: return <Dashboard profile={profile} identity={identity} services={services} conversations={conversations} orders={orders} announcements={announcements} conversationsLoading={conversationsQuery.isLoading} conversationsError={conversationsQuery.isError} retryConversations={() => void conversationsQuery.refetch()} ordersLoading={ordersQuery.isLoading} ordersError={ordersQuery.isError} retryOrders={() => void ordersQuery.refetch()}/>;
     }
-  // Using local demo state to keep every interaction within this workspace.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPath, role, chats, selectedChat, activeChat, messageInput, services, orders, announcements, announcementTitle, announcementBody, draft, requests]);
+  };
   return <div className="app-shell flex text-slate-100">
-    <aside className="sidebar fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col px-4 py-5 md:flex">
-      <Brand />
-      <div className="mt-8 rounded-xl border border-sky-400/15 bg-sky-400/[.06] px-3 py-2.5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.19em] text-sky-300"><span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Demo workspace</div><div className="mt-1 text-xs text-slate-400">All changes stay on this device.</div></div>
-      <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Main navigation">
-        <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-slate-600">Workspace</div>
-        {filteredNav.map(item => <Link key={item.path} href={item.path} data-testid={`nav-${item.path.slice(1)}`} className={`nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium ${currentPath === item.path ? 'active' : 'text-slate-400'}`}><item.icon size={17} strokeWidth={1.8} /><span>{item.label}</span>{item.path === '/messages' && <span className="ml-auto rounded-full bg-sky-400/15 px-1.5 py-0.5 text-[10px] text-sky-300">2</span>}</Link>)}
-      </nav>
-      <div className="panel p-3.5"><div className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck size={15} className="text-violet-300" />Private by design</div><p className="mb-0 mt-1.5 text-[11px] leading-relaxed text-slate-500">Conversations are between you and Okenstyles only. No online or last-seen status.</p></div>
+    <aside className="sidebar fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col px-4 py-5 md:flex"><Brand/><div className="mt-8 rounded-xl border border-sky-400/15 bg-sky-400/[.06] px-3 py-2.5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.19em] text-sky-300"><span className="h-1.5 w-1.5 rounded-full bg-sky-400"/>Connected workspace</div><div className="mt-1 text-xs text-slate-400">{owner ? 'Owner tools and customer activity' : 'Your services and conversations'}</div></div>
+      <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Main navigation"><div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-slate-600">Workspace</div>{filteredNav.map((item) => <Link key={item.path} href={item.path} data-testid={`nav-${item.path.slice(1)}`} className={`nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium ${currentPath === item.path ? 'active' : 'text-slate-400'}`}><item.icon size={17} strokeWidth={1.8}/><span>{item.label}</span></Link>)}</nav>
+      <div className="panel p-3.5"><div className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck size={15} className="text-violet-300"/>Private by design</div><p className="mb-0 mt-1.5 text-[11px] leading-relaxed text-slate-500">Customer conversations are only with the business owner. No online or last-seen status.</p></div>
     </aside>
     <div className="ml-0 flex min-h-[100dvh] w-full flex-col md:ml-[250px]">
       <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-white/[.06] bg-[#090d19]/90 px-4 backdrop-blur-xl sm:px-7">
-        <div className="flex items-center gap-3"><button className="btn-quiet rounded-lg p-2 md:hidden" aria-label="Open navigation" data-testid="button-mobile-menu" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={18} /></button><div><div className="display text-lg font-bold tracking-tight">{pageTitle}</div><div className="hidden text-[11px] text-slate-500 sm:block">Okenstyles Graphics And Tech <span className="mx-1.5 text-slate-700">/</span> Demo workspace</div></div></div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/[.035] px-3 py-1.5 sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" /><span className="text-[10px] font-semibold uppercase tracking-[.12em] text-slate-300">Demo mode</span></div>
-          <label className="relative"><span className="sr-only">Switch demo role</span><UserRound size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sky-300" /><select aria-label="Switch demo role" data-testid="select-demo-role" value={role} onChange={event => changeRole(event.target.value as Role)} className="form-field h-9 appearance-none rounded-xl pl-8 pr-8 text-xs font-semibold"><option value="customer">Customer view</option><option value="owner">Owner view</option></select><ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" /></label>
-          <button className="btn-quiet relative rounded-xl p-2.5" aria-label="Demo notifications" data-testid="button-notifications" onClick={() => showNotice('Notifications are sample-only in this demo.')}><Bell size={17} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-violet-400" /></button>
-          <div className="hidden h-8 w-8 items-center justify-center rounded-full border border-sky-300/30 bg-gradient-to-br from-sky-300/30 to-violet-400/30 text-xs font-bold text-sky-100 sm:flex">{role === 'owner' ? 'OT' : 'AJ'}</div>
-        </div>
+        <div className="flex items-center gap-3"><button className="btn-quiet rounded-lg p-2 md:hidden" aria-label="Open navigation" data-testid="button-mobile-menu" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={18}/></button><div><div className="display text-lg font-bold tracking-tight">{title}</div><div className="hidden text-[11px] text-slate-500 sm:block">Okenstyles Graphics And Tech <span className="mx-1.5 text-slate-700">/</span> {owner ? 'Owner workspace' : 'Customer workspace'}</div></div></div>
+        <div className="flex items-center gap-2 sm:gap-3"><div className="hidden max-w-48 truncate text-xs text-slate-400 sm:block" title={identity}>{identity}</div><ProfileAvatar identity={identity}/><SignOutButton/></div>
       </header>
-      {mobileMenu && <div className="fixed inset-0 z-40 bg-[#080d18] p-5 md:hidden"><div className="mb-7 flex items-center justify-between"><Brand /><button onClick={() => setMobileMenu(false)} className="btn-quiet rounded-lg p-2" aria-label="Close menu" data-testid="button-close-mobile-menu"><X size={17}/></button></div><nav className="flex flex-col gap-2">{filteredNav.map(item => <Link key={item.path} onClick={() => setMobileMenu(false)} href={item.path} className="nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300"><item.icon size={18}/>{item.label}<ChevronRight className="ml-auto" size={15}/></Link>)}</nav><div className="mt-8 text-xs text-slate-500">Demo workspace · nothing is sent or stored online.</div></div>}
-      <main className="main-content mx-auto w-full max-w-[1500px] flex-1 px-5 py-7 lg:px-9">{page}</main>
-      <nav className="mobile-nav fixed inset-x-0 bottom-0 z-30 justify-around border-t border-white/[.08] bg-[#090d19]/95 px-1 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl">
-        {filteredNav.slice(0, 5).map(item => <Link key={item.path} href={item.path} data-testid={`mobile-nav-${item.path.slice(1)}`} className={`flex min-w-[54px] flex-col items-center gap-1 rounded-lg py-1 text-[9px] ${currentPath === item.path ? 'text-sky-300' : 'text-slate-500'}`}><item.icon size={18} strokeWidth={1.8}/>{item.label}</Link>)}
-      </nav>
+      {mobileMenu && <div className="fixed inset-0 z-40 bg-[#080d18] p-5 md:hidden"><div className="mb-7 flex items-center justify-between"><Brand/><button onClick={() => setMobileMenu(false)} className="btn-quiet rounded-lg p-2" aria-label="Close menu" data-testid="button-close-mobile-menu"><X size={17}/></button></div><nav className="flex flex-col gap-2">{filteredNav.map((item) => <Link key={item.path} onClick={() => setMobileMenu(false)} href={item.path} className="nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300"><item.icon size={18}/>{item.label}<ChevronRight className="ml-auto" size={15}/></Link>)}</nav></div>}
+      <main className="main-content mx-auto w-full max-w-[1500px] flex-1 px-5 py-7 lg:px-9">{page()}</main>
+      <nav className="mobile-nav fixed inset-x-0 bottom-0 z-30 justify-around border-t border-white/[.08] bg-[#090d19]/95 px-1 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl">{filteredNav.slice(0, 5).map((item) => <Link key={item.path} href={item.path} data-testid={`mobile-nav-${item.path.slice(1)}`} className={`flex min-w-[54px] flex-col items-center gap-1 rounded-lg py-1 text-[9px] ${currentPath === item.path ? 'text-sky-300' : 'text-slate-500'}`}><item.icon size={18} strokeWidth={1.8}/>{item.label}</Link>)}</nav>
     </div>
-    {notice && <div role="status" data-testid="status-demo-notice" className="fixed bottom-20 left-1/2 z-50 flex max-w-[min(92vw,480px)] -translate-x-1/2 items-start gap-2 rounded-xl border border-sky-300/20 bg-[#111c30] px-4 py-3 text-xs leading-relaxed text-slate-200 shadow-2xl md:bottom-6"><Check size={15} className="mt-0.5 shrink-0 text-sky-300"/>{notice}</div>}
+    {notice && <div role="status" data-testid="status-workspace-notice" className="fixed bottom-20 left-1/2 z-50 flex max-w-[min(92vw,480px)] -translate-x-1/2 items-start gap-2 rounded-xl border border-sky-300/20 bg-[#111c30] px-4 py-3 text-xs leading-relaxed text-slate-200 shadow-2xl md:bottom-6"><Check size={15} className="mt-0.5 shrink-0 text-sky-300"/>{notice}</div>}
   </div>;
 }
-
-function Brand() { return <div className="flex items-center gap-3"><div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-sky-300/25 bg-gradient-to-br from-sky-400/20 to-violet-500/20 text-lg font-bold text-sky-200"><span className="display">O</span><span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_10px_rgba(168,85,247,.7)]"/></div><div><div className="display text-[15px] font-bold tracking-[.15em]">OKENOVA</div><div className="text-[9px] tracking-wide text-slate-500">YOUR BUSINESS. YOUR CONNECTIONS.</div></div></div>; }
-
-type PageProps = {
- role: Role; chats: Chat[]; selectedChat: Chat; activeChat: string; setActiveChat: (id:string)=>void; messageInput:string; setMessageInput:(value:string)=>void; submitMessage:(event:React.FormEvent)=>void;
- services:Service[]; requestService:(service:Service)=>void; orders:Order[]; setOrderStatus:(id:string,status:string)=>void; announcements:typeof seedAnnouncements; announcementTitle:string; setAnnouncementTitle:(value:string)=>void; announcementBody:string; setAnnouncementBody:(value:string)=>void; publishAnnouncement:(event:React.FormEvent)=>void;
- draft:string; setDraft:(value:string)=>void; createDraft:(mode:'reply'|'summary'|'requests')=>void; approveDraft:()=>void; requests:string[]; toggleService:(id:string)=>void; showNotice:(text:string)=>void; setPath:(path:string)=>void;
-};
-function Heading({ eyebrow, title, description, action }: { eyebrow?:string;title:string;description?:string;action?:ReactNode }) { return <div className="mb-6 flex flex-wrap items-end justify-between gap-3"><div>{eyebrow && <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[.2em] text-sky-300">{eyebrow}</div>}<h1 className="display m-0 text-[27px] font-semibold tracking-[-.04em] text-slate-50 sm:text-[32px]">{title}</h1>{description && <p className="mb-0 mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-400">{description}</p>}</div>{action}</div>; }
-function SectionTitle({ title, hint, href }: {title:string;hint?:string;href?:string}) { return <div className="mb-4 flex items-center justify-between"><div><h2 className="display m-0 text-[15px] font-semibold text-slate-100">{title}</h2>{hint&&<p className="mb-0 mt-1 text-xs text-slate-500">{hint}</p>}</div>{href&&<Link href={href} className="flex items-center gap-1 text-xs font-semibold text-sky-300 hover:text-sky-200">View all <ChevronRight size={14}/></Link>}</div>; }
-function DemoTag() { return <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/15 bg-amber-300/[.07] px-2 py-1 text-[9px] font-bold uppercase tracking-[.14em] text-amber-200"><span className="h-1 w-1 rounded-full bg-amber-300"/>Demo only</span>; }
-function Card({ children, className = '' }: {children:ReactNode;className?:string}) { return <section className={`panel ${className}`}>{children}</section>; }
-function Stat({ label, value, note, icon:Icon, tint='sky' }: {label:string;value:string;note:string;icon:typeof Image;tint?:string}) { return <Card className="p-4 sm:p-5"><div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-400">{label}</span><span className={`rounded-lg bg-${tint}-400/10 p-2 text-${tint}-300`}><Icon size={16}/></span></div><div className="display mt-3 text-[28px] font-semibold tracking-tight">{value}</div><div className="mt-1 text-[11px] text-slate-500">{note}</div></Card>; }
-
-function Dashboard(p:PageProps) {
- return <div className="enter space-y-6">
-  <div className="relative overflow-hidden rounded-[22px] border border-sky-300/15 bg-gradient-to-br from-[#102341] via-[#111c34] to-[#1a1532] p-5 sm:p-8"><div className="absolute -right-12 -top-20 h-64 w-64 rounded-full border border-sky-300/10"/><div className="absolute -right-1 top-6 h-36 w-36 rounded-full border border-violet-300/10"/><div className="relative max-w-2xl"><div className="mb-3 flex items-center gap-2"><span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.16em] text-sky-200">A clearer way to connect</span><DemoTag/></div><h1 className="display max-w-xl text-3xl font-semibold leading-tight tracking-[-.045em] text-white sm:text-[40px]">{p.role==='owner'?'Good morning, Okenstyles.':'Good to see you, Amara.'}<br/><span className="text-sky-300">Your next idea starts here.</span></h1><p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-300/80">One direct connection for creative services, device support and every detail in between.</p><div className="mt-5 flex flex-wrap gap-2"><Link href="/services" data-testid="link-explore-services" className="btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs"><BriefcaseBusiness size={15}/>Explore services<ArrowUpRight size={14}/></Link><Link href="/messages" data-testid="link-message-business" className="btn-quiet inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-200"><MessageCircle size={15}/>Message the business</Link></div></div><div className="absolute bottom-0 right-0 hidden h-full w-[36%] items-center justify-center sm:flex"><div className="relative flex h-48 w-48 items-center justify-center rounded-full border border-sky-300/15 bg-[#071225]/40"><div className="absolute inset-4 rounded-full border border-violet-300/20"/><div className="absolute h-28 w-28 rotate-[-28deg] rounded-[35%] border-2 border-sky-300/60 shadow-[0_0_36px_rgba(0,183,255,.14)]"/><div className="display relative text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-cyan-300 via-blue-400 to-violet-400">O</div><Sparkles className="absolute right-7 top-7 text-violet-300" size={18}/><span className="absolute bottom-2 rounded-full border border-sky-200/15 bg-[#0a1426]/80 px-3 py-1 text-[9px] tracking-[.18em] text-sky-200">OKENOVA</span></div></div></div>
-  <div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><Stat label="Private conversations" value={`${p.chats.length}`} note="Only you and the business" icon={MessageSquare}/><Stat label="Service requests" value={`${p.requests.length}`} note="Sample activity" icon={ClipboardList} tint="violet"/><Stat label="Active orders" value={`${p.orders.filter(o=>o.status!=='Completed').length}`} note="Track progress here" icon={Package} tint="amber"/><Stat label="Updates" value={`${p.announcements.length}`} note="From Okenstyles" icon={Megaphone} tint="emerald"/></div>
-  <div className="grid gap-5 xl:grid-cols-[1.35fr_.85fr]"><Card className="p-5"><SectionTitle title="Recent conversations" hint="Private chats with Okenstyles Graphics And Tech" href="/messages"/><div className="divide-y divide-white/[.06]">{p.chats.slice(0,3).map(chat=><button key={chat.id} onClick={()=>{p.setActiveChat(chat.id);p.setPath('/messages')}} data-testid={`button-open-chat-${chat.id}`} className="flex w-full items-center gap-3 py-3 text-left hover:bg-white/[.025]"><Avatar initials={chat.initials}/><div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><span className="truncate text-sm font-semibold">{chat.name}</span><span className="text-[10px] text-slate-500">{chat.messages.at(-1)?.time}</span></div><div className="mt-1 truncate text-xs text-slate-500">{chat.messages.at(-1)?.text}</div></div><ChevronRight size={15} className="text-slate-600"/></button>)}</div><div className="mt-3 flex items-center gap-2 rounded-xl bg-sky-300/[.05] p-3 text-[11px] text-slate-400"><ShieldCheck size={15} className="shrink-0 text-sky-300"/>Your chat is only with the business owner. No other customer conversations are visible.</div></Card>
-   <div className="space-y-5"><Card className="p-5"><SectionTitle title="Quick actions" hint="Get to the useful stuff faster"/><div className="grid grid-cols-2 gap-2">{[{label:'Browse services',icon:BriefcaseBusiness,to:'/services'},{label:'Track an order',icon:Package,to:'/orders'},{label:'Send a message',icon:MessageCircle,to:'/messages'},{label:'View updates',icon:Megaphone,to:'/announcements'}].map(item=><Link key={item.to} href={item.to} data-testid={`quick-${item.to.slice(1)}`} className="btn-quiet flex min-h-[76px] flex-col items-start justify-between rounded-xl p-3 text-xs font-semibold text-slate-300"><item.icon size={17} className="text-sky-300"/>{item.label}</Link>)}</div></Card><Card className="p-5"><SectionTitle title="Service requests" href="/orders"/><div className="space-y-3">{p.requests.slice(0,2).map((request,i)=><div key={`${request}-${i}`} className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-400/10 text-violet-300"><ClipboardList size={15}/></span><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{request}</div><div className="mt-1 text-[10px] text-slate-500">Waiting for business review</div></div><span className="h-1.5 w-1.5 rounded-full bg-amber-300"/></div>)}</div></Card></div></div>
-  <Card className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5"><div className="flex items-center gap-3"><div className="rounded-xl bg-violet-400/10 p-2.5 text-violet-300"><Sparkles size={18}/></div><div><div className="text-sm font-semibold">Need a hand shaping your request?</div><div className="mt-1 text-xs text-slate-500">Open a private conversation with the business.</div></div></div><Link href="/messages" className="btn-quiet rounded-xl px-3 py-2 text-xs font-semibold">Start a conversation</Link></Card>
- </div>;
+function SignOutButton() {
+  const { signOut } = useClerk();
+  return <button onClick={() => void signOut({ redirectUrl: basePath || '/' })} className="btn-quiet rounded-xl px-3 py-2 text-[10px] font-semibold text-slate-300" data-testid="button-sign-out">Sign out</button>;
 }
-function Avatar({initials}:{initials:string}) { return <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-sky-300/15 bg-gradient-to-br from-sky-400/20 to-violet-400/20 text-xs font-bold text-sky-100">{initials}</div>; }
-function Messages(p:PageProps) {
- return <div className="enter"><Heading eyebrow="Private customer ↔ business" title="Messages" description={p.role==='owner'?'Manage conversations with your customers. Each thread is private to that customer and the business.':'A direct line to Okenstyles Graphics And Tech. Only you and the business can see this conversation.'} action={<DemoTag/>}/>
-  <div className="chat-layout grid min-h-[570px] grid-cols-[290px_1fr] gap-4">
-   <Card className="chat-list flex flex-col overflow-hidden"><div className="border-b soft-line p-4"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/><input aria-label="Search conversations" data-testid="input-search-chats" placeholder="Search conversations" className="form-field h-9 w-full rounded-lg pl-9 pr-3 text-xs"/></div><div className="mt-3 flex items-center justify-between text-[10px] text-slate-500"><span>{p.role==='owner'?'Customer conversations':'Your conversation'}</span><span>{p.chats.length} threads</span></div></div><div className="flex-1 p-2">{p.chats.map(chat=><button key={chat.id} data-testid={`button-select-chat-${chat.id}`} onClick={()=>p.setActiveChat(chat.id)} className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ${p.activeChat===chat.id?'bg-sky-400/[.09]':'hover:bg-white/[.035]'}`}><Avatar initials={chat.initials}/><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{chat.name}</div><div className="mt-1 truncate text-[10px] text-slate-500">{chat.messages.at(-1)?.text}</div></div><span className="self-start text-[9px] text-slate-600">{chat.messages.at(-1)?.time}</span></button>)}</div><div className="border-t soft-line p-3 text-[10px] leading-relaxed text-slate-500"><ShieldCheck size={13} className="mr-1 inline text-sky-300"/>No customer-to-customer messaging.</div></Card>
-   <Card className="flex min-h-[570px] flex-col overflow-hidden"><div className="flex items-center gap-3 border-b soft-line px-4 py-3.5"><Avatar initials={p.selectedChat?.initials??'OT'}/><div className="min-w-0 flex-1"><div className="text-sm font-semibold">{p.selectedChat?.name??'Business conversation'}</div><div className="mt-1 text-[10px] text-slate-500">{p.role==='owner'?p.selectedChat?.context:'Private conversation with Okenstyles Graphics And Tech'}</div></div><div className="rounded-lg border border-sky-300/10 bg-sky-300/[.05] px-2 py-1.5 text-[9px] text-sky-200"><ShieldCheck size={11} className="mr-1 inline"/>Private</div></div>
-    <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">{(p.selectedChat?.messages??[]).map((message,index)=><div key={`${index}-${message.time}`} className={`flex ${message.from==='customer'?'justify-start':'justify-end'}`} data-testid={`message-row-${p.activeChat}-${index}`}><div className={`max-w-[84%] ${message.from==='customer'?'':'text-right'}`}><div className={`mb-1.5 text-[9px] text-slate-600`}>{message.from==='customer'?(p.role==='owner'?p.selectedChat?.name:'You'):'Okenstyles Graphics And Tech'} · {message.time}</div><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${message.from==='customer'?'rounded-tl-sm border border-white/[.07] bg-[#111a2c] text-slate-200':'rounded-tr-sm bg-gradient-to-br from-[#155b8c] to-[#29478b] text-white'}`}>{message.text}</div></div></div>)}</div>
-    <div className="border-t soft-line p-3"><div className="mb-2 flex items-center gap-1.5 text-[10px] text-amber-200/80"><CircleHelp size={12}/> Demo message only — this will not be sent online.</div><form onSubmit={p.submitMessage} className="flex gap-2"><input aria-label="Type a demo message" data-testid="input-message-composer" value={p.messageInput} onChange={e=>p.setMessageInput(e.target.value)} placeholder="Write a message for this demo..." className="form-field h-11 min-w-0 flex-1 rounded-xl px-3 text-xs"/><button type="submit" aria-label="Add demo message" data-testid="button-send-message" className="btn-primary flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-40" disabled={!p.messageInput.trim()}><Send size={16}/></button></form></div>
-   </Card>
-  </div>
- </div>;
+function Brand() {
+  return <div className="flex items-center gap-3"><div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-sky-300/25 bg-gradient-to-br from-sky-400/20 to-violet-500/20 text-lg font-bold text-sky-200"><span className="display">O</span><span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-violet-400"/></div><div><div className="display text-[15px] font-bold tracking-[.15em]">OKENOVA</div><div className="text-[9px] tracking-wide text-slate-500">YOUR BUSINESS. YOUR CONNECTIONS.</div></div></div>;
 }
-function ServicesPage(p:PageProps) {
- return <div className="enter"><Heading eyebrow="What we can do together" title="Services" description="Explore practical creative and tech services from Okenstyles Graphics And Tech." action={<DemoTag/>}/>
-  <div className="mb-5 grid gap-4 sm:grid-cols-[1.3fr_.7fr]"><Card className="relative overflow-hidden p-5 sm:p-6"><div className="absolute -right-10 -top-12 h-40 w-40 rounded-full border border-violet-300/10"/><div className="relative max-w-xl"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-violet-300">Small business. Big ideas.</div><h2 className="display mt-2 text-2xl font-semibold leading-tight">Make the next thing<br/>feel unmistakably yours.</h2><p className="mb-0 mt-2 max-w-lg text-xs leading-relaxed text-slate-400">From a brand refresh to a device back in working order, get personal help without the runaround.</p></div></Card><Card className="flex items-center gap-4 p-5"><div className="rounded-xl bg-sky-300/10 p-3 text-sky-300"><MonitorSmartphone size={21}/></div><div><div className="text-sm font-semibold">A real person, one conversation</div><div className="mt-1 text-xs leading-relaxed text-slate-500">Request details stay between you and the business owner.</div></div></Card></div>
-  <div className="mb-4 flex items-center justify-between"><SectionTitle title="Available services" hint="Choose a starting point; pricing is confirmed with the business."/></div><div className="grid gap-4 lg:grid-cols-3">{p.services.map((service,index)=>{const Icon=service.icon;return <Card key={service.id} className="flex flex-col p-5" ><div className="mb-5 flex items-start justify-between"><div className={`rounded-2xl p-3 ${index===1?'bg-violet-400/10 text-violet-300':index===2?'bg-amber-300/10 text-amber-200':'bg-sky-300/10 text-sky-300'}`}><Icon size={21}/></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${service.available?'bg-emerald-300/10 text-emerald-200':'bg-slate-400/10 text-slate-500'}`}>{service.available?'Available':'Temporarily unavailable'}</span></div><div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">{service.category}</div><h3 className="display mb-0 mt-1.5 text-xl font-semibold">{service.name}</h3><p className="mt-2 min-h-[58px] text-xs leading-relaxed text-slate-400">{service.description}</p><div className="mt-auto flex items-center justify-between border-t soft-line pt-4"><span className="text-xs font-semibold text-slate-300">{service.price}</span><button onClick={()=>service.available?p.requestService(service):p.showNotice('This service is marked unavailable in the owner demo view.')} disabled={!service.available} data-testid={`button-request-service-${service.id}`} className="btn-primary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] disabled:cursor-not-allowed disabled:opacity-40">Request demo<ChevronRight size={14}/></button></div><div className="mt-3 text-[10px] text-slate-600">Request stays local. No booking or contact is made.</div></Card>})}</div>
-  <div className="mt-5 flex items-center gap-3 rounded-xl border border-sky-300/10 bg-sky-300/[.04] p-4 text-xs text-slate-400"><ShieldCheck size={16} className="shrink-0 text-sky-300"/>Questions about fit or pricing? Send a private demo message directly to the business owner.<Link href="/messages" className="ml-auto shrink-0 font-semibold text-sky-300">Message <ArrowUpRight size={12} className="inline"/></Link></div>
- </div>;
+function ProfileAvatar({ identity }: { identity: string }) {
+  const initials = identity.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';
+  return <div className="hidden h-8 w-8 items-center justify-center rounded-full border border-sky-300/30 bg-gradient-to-br from-sky-300/30 to-violet-400/30 text-[10px] font-bold text-sky-100 sm:flex" aria-label={`Signed in as ${identity}`}>{initials}</div>;
 }
-function OrdersPage(p:PageProps) {
- const groups=['Pending','In progress','Completed'];
- return <div className="enter"><Heading eyebrow="A clear view of every step" title="Orders & requests" description={p.role==='owner'?'Review sample customer orders and update local demo status.':'Follow sample orders and demo requests from first step to finish.'} action={<DemoTag/>}/>
-  <div className="mb-5 grid grid-cols-3 gap-3">{groups.map((status,i)=><Card key={status} className="p-4"><div className="flex items-center gap-2 text-xs text-slate-400"><span className={`h-2 w-2 rounded-full ${i===0?'bg-amber-300':i===1?'bg-sky-300':'bg-emerald-300'}`}/>{status}</div><div className="display mt-3 text-2xl font-semibold">{p.orders.filter(o=>o.status===status).length}</div><div className="mt-1 text-[10px] text-slate-600">sample orders</div></Card>)}</div>
-  <Card className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b soft-line p-5"><div><h2 className="display m-0 text-base font-semibold">Order activity</h2><p className="mb-0 mt-1 text-xs text-slate-500">Demo tracking only · no real fulfillment data</p></div><span className="rounded-lg bg-slate-400/[.08] px-2.5 py-1.5 text-[10px] text-slate-400">{p.orders.length} sample orders</span></div>
-    <div className="divide-y divide-white/[.06]">{p.orders.map(order=><div key={order.id} data-testid={`order-row-${order.id}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:px-5"><div className="flex min-w-0 flex-1 items-center gap-3"><div className="rounded-xl bg-sky-300/[.08] p-2.5 text-sky-300"><Package size={18}/></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2 text-sm font-semibold">{order.service}<span className="font-mono text-[10px] font-normal text-slate-600">{order.id}</span></div><div className="mt-1 text-[11px] text-slate-500">{p.role==='owner'?`${order.customer} · `:''}{order.date}</div></div></div><StatusBadge status={order.status}/>{p.role==='owner'&&<select aria-label={`Update status for ${order.id}`} data-testid={`select-order-status-${order.id}`} value={order.status} onChange={e=>p.setOrderStatus(order.id,e.target.value)} className="form-field h-9 rounded-lg px-2 text-xs"><option>Pending</option><option>In progress</option><option>Completed</option></select>}</div>)}</div></Card>
-  <div className="mt-5 grid gap-4 md:grid-cols-2"><Card className="p-5"><div className="flex items-center gap-2 text-sm font-semibold"><ClipboardList size={16} className="text-violet-300"/>Service requests</div><p className="mt-1 text-xs text-slate-500">These are demo actions, not actual bookings.</p><div className="mt-4 space-y-2">{p.requests.length?p.requests.map((r,i)=><div key={`${r}-${i}`} className="flex items-center justify-between rounded-lg bg-white/[.025] px-3 py-2.5 text-xs"><span>{r}</span><span className="text-[10px] text-amber-200">Demo</span></div>):<Empty title="No demo requests yet" text="Browse services to add a sample request."/>}</div></Card><Card className="flex items-start gap-3 p-5"><Clock3 size={18} className="mt-0.5 text-sky-300"/><div><div className="text-sm font-semibold">Status updates stay local</div><p className="mb-0 mt-1 text-xs leading-relaxed text-slate-500">Owner changes update this browser demo only. No customer notification is created.</p></div></Card></div>
- </div>;
+function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <section className={`panel ${className}`}>{children}</section>;
 }
-function StatusBadge({status}:{status:string}) { const klass=status==='Completed'?'border-emerald-300/15 bg-emerald-300/[.07] text-emerald-200':status==='In progress'?'border-sky-300/15 bg-sky-300/[.07] text-sky-200':'border-amber-300/15 bg-amber-300/[.07] text-amber-200';return <span data-testid={`status-order-${status.toLowerCase().replace(' ','-')}`} className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${klass}`}><span className="h-1 w-1 rounded-full bg-current"/>{status}</span>; }
-function Empty({title,text}:{title:string;text:string}) { return <div className="rounded-xl border border-dashed border-white/10 px-4 py-7 text-center"><div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-400/[.07] text-slate-500"><ClipboardList size={16}/></div><div className="text-xs font-semibold text-slate-300">{title}</div><div className="mt-1 text-[11px] text-slate-500">{text}</div></div>; }
-function AnnouncementsPage(p:PageProps) {
- return <div className="enter"><Heading eyebrow="Notes from the studio" title="Announcements" description="Updates, availability and small notes from Okenstyles Graphics And Tech." action={<DemoTag/>}/>
-  {p.role==='owner'&&<Card className="mb-5 p-5"><div className="mb-4 flex items-center gap-3"><div className="rounded-xl bg-violet-400/10 p-2.5 text-violet-300"><Megaphone size={18}/></div><div><h2 className="display m-0 text-base font-semibold">Write an announcement</h2><p className="mb-0 mt-1 text-xs text-slate-500">Publishing adds a local sample update. It will not be delivered externally.</p></div></div><form onSubmit={p.publishAnnouncement} className="space-y-3"><input aria-label="Announcement title" data-testid="input-announcement-title" value={p.announcementTitle} onChange={e=>p.setAnnouncementTitle(e.target.value)} placeholder="A clear, helpful title" className="form-field h-10 w-full rounded-lg px-3 text-xs"/><textarea aria-label="Announcement message" data-testid="input-announcement-body" value={p.announcementBody} onChange={e=>p.setAnnouncementBody(e.target.value)} placeholder="Share an update with customers..." rows={3} className="form-field w-full resize-y rounded-lg px-3 py-2.5 text-xs"/><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-[10px] text-amber-200/70">Local demo publish only · no push notification</span><button type="submit" data-testid="button-publish-announcement" disabled={!p.announcementTitle.trim()||!p.announcementBody.trim()} className="btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-40"><Plus size={14}/>Publish demo update</button></div></form></Card>}
-  <div className="mb-4 flex items-center justify-between"><SectionTitle title="Latest updates" hint={`${p.announcements.length} posts in sample feed`}/><div className="rounded-lg border border-white/[.07] px-2.5 py-1.5 text-[10px] text-slate-500"><Bell size={12} className="mr-1 inline"/>Demo feed</div></div>
-  <div className="space-y-3">{p.announcements.map((item,index)=><Card key={item.id} className="relative overflow-hidden p-5 sm:p-6"><div className={`absolute inset-y-0 left-0 w-1 ${index===0?'bg-gradient-to-b from-sky-400 to-violet-400':'bg-sky-400/40'}`}/><div className="flex items-start gap-3 pl-1"><div className="mt-1 rounded-xl bg-sky-300/[.08] p-2.5 text-sky-300"><Megaphone size={16}/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 data-testid={`announcement-title-${item.id}`} className="display m-0 text-base font-semibold">{item.title}</h3>{index===0&&<span className="rounded-full bg-sky-300/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-200">Latest</span>}</div><div className="mt-1.5 text-[10px] text-slate-500">{item.date}</div><p className="mb-0 mt-3 max-w-3xl text-sm leading-relaxed text-slate-300">{item.body}</p></div><ArrowUpRight size={16} className="text-slate-600"/></div></Card>)}</div>
-  <div className="mt-5 flex gap-3 rounded-xl border border-white/[.06] bg-white/[.02] p-4 text-[11px] leading-relaxed text-slate-500"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-sky-300"/>Announcements shown here are part of the local demo feed. Nothing is broadcast or delivered to a device.</div>
- </div>;
+function Heading({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
+  return <div className="mb-6 flex flex-wrap items-end justify-between gap-3"><div>{eyebrow && <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[.2em] text-sky-300">{eyebrow}</div>}<h1 className="display m-0 text-[27px] font-semibold tracking-[-.04em] text-slate-50 sm:text-[32px]">{title}</h1>{description && <p className="mb-0 mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-400">{description}</p>}</div>{action}</div>;
 }
-function AssistantPage(p:PageProps) {
- return <div className="enter"><Heading eyebrow="Owner tools · draft only" title="AI assistant" description="A sample writing space for shaping replies and organizing work. Nothing is generated by a live AI service." action={<DemoTag/>}/>
-  <div className="mb-5 grid gap-4 md:grid-cols-[1.05fr_.95fr]"><Card className="relative overflow-hidden p-5 sm:p-6"><div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-violet-400/[.05] blur-xl"/><div className="relative flex items-center gap-3"><span className="rounded-xl bg-gradient-to-br from-sky-400/20 to-violet-400/20 p-3 text-sky-200"><Bot size={22}/></span><div><div className="display text-lg font-semibold">A thoughtful first draft.</div><div className="mt-1 text-xs text-slate-500">Your judgment always comes first.</div></div></div><p className="relative mb-0 mt-4 max-w-lg text-xs leading-relaxed text-slate-400">Choose a sample action to place draft text in the editor. You can change every word, then approve it into local demo state—or discard it.</p><div className="relative mt-5 flex flex-wrap gap-2"><button onClick={()=>p.createDraft('reply')} data-testid="button-draft-reply" className="btn-primary inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs"><Sparkles size={14}/>Draft a reply</button><button onClick={()=>p.createDraft('summary')} data-testid="button-summarize-chat" className="btn-quiet inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-200"><MessageSquare size={14}/>Summarize chat</button><button onClick={()=>p.createDraft('requests')} data-testid="button-organize-requests" className="btn-quiet inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-200"><ClipboardList size={14}/>Organize requests</button></div></Card>
-   <Card className="p-5"><div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={16} className="text-violet-300"/>Owner approval required</div><p className="mt-2 text-xs leading-relaxed text-slate-400">Nothing enters a conversation until you explicitly approve it. Approval only appends locally; it never sends.</p><div className="mt-4 rounded-xl border border-white/[.06] bg-[#0b1221] p-3"><div className="mb-2 text-[10px] font-bold uppercase tracking-[.15em] text-slate-500">Current sample context</div><div className="flex items-center gap-2 text-xs font-medium"><Avatar initials={p.selectedChat?.initials??'AJ'}/><div>{p.selectedChat?.name??'Customer'}<div className="mt-1 text-[10px] font-normal text-slate-500">{p.selectedChat?.context??'Conversation'}</div></div></div></div></Card></div>
-  <Card className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b soft-line px-5 py-4"><div><h2 className="display m-0 text-base font-semibold">Draft editor</h2><p className="mb-0 mt-1 text-xs text-slate-500">Editable local sample · pending until you decide</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${p.draft?'bg-amber-300/10 text-amber-200':'bg-slate-400/[.08] text-slate-500'}`}>{p.draft?'Pending approval':'No pending draft'}</span></div><div className="p-5"><textarea aria-label="Edit assistant draft" data-testid="input-assistant-draft" value={p.draft} onChange={e=>p.setDraft(e.target.value)} rows={8} placeholder="Choose one of the sample actions above to prepare a draft. It remains pending until you approve it." className="form-field w-full resize-y rounded-xl p-4 text-sm leading-relaxed"/><div className="mt-3 flex flex-wrap items-center justify-between gap-3"><div className="max-w-lg text-[10px] leading-relaxed text-slate-500">Sample assistant UI · not a live AI · drafts are never automatically sent.</div><div className="flex gap-2"><button onClick={()=>p.setDraft('')} disabled={!p.draft} data-testid="button-discard-draft" className="btn-quiet inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs text-slate-300 disabled:opacity-40"><X size={14}/>Discard</button><button onClick={p.approveDraft} disabled={!p.draft.trim()} data-testid="button-approve-draft" className="btn-primary inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs disabled:opacity-40"><Check size={14}/>Approve to demo chat</button></div></div></div></Card>
-  <div className="mt-4 rounded-xl border border-amber-300/10 bg-amber-300/[.035] p-3 text-[10px] text-amber-100/70"><span className="font-bold">Not sent:</span> approving only adds the text to local demo conversation state. It does not contact a customer.</div>
- </div>;
+function SectionTitle({ title, hint, href }: { title: string; hint?: string; href?: string }) {
+  return <div className="mb-4 flex items-center justify-between"><div><h2 className="display m-0 text-[15px] font-semibold text-slate-100">{title}</h2>{hint && <p className="mb-0 mt-1 text-xs text-slate-500">{hint}</p>}</div>{href && <Link href={href} className="flex items-center gap-1 text-xs font-semibold text-sky-300 hover:text-sky-200">View all <ChevronRight size={14}/></Link>}</div>;
 }
-function OwnerPage(p:PageProps) {
- const [tab,setTab]=useState<'overview'|'services'|'conversations'>('overview');
- return <div className="enter"><Heading eyebrow="Owner workspace" title="Business overview" description="A local operations view for the Okenstyles demo. Manage sample orders, services and customer conversations." action={<DemoTag/>}/>
-  <div className="mb-5 flex gap-1 rounded-xl border border-white/[.06] bg-[#0c1322] p-1">{(['overview','services','conversations'] as const).map(value=><button key={value} onClick={()=>setTab(value)} data-testid={`button-owner-tab-${value}`} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold capitalize ${tab===value?'bg-sky-300/10 text-sky-200':'text-slate-500 hover:text-slate-300'}`}>{value}</button>)}</div>
-  {tab==='overview'&&<><div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><Stat label="Customer threads" value={`${p.chats.length}`} note="Private, owner-access only" icon={MessageSquare}/><Stat label="Open requests" value={`${p.requests.length}`} note="Local sample requests" icon={ClipboardList} tint="violet"/><Stat label="Orders in progress" value={`${p.orders.filter(o=>o.status==='In progress').length}`} note="Update order status below" icon={Package} tint="amber"/><Stat label="Published updates" value={`${p.announcements.length}`} note="Local demo feed" icon={Megaphone} tint="emerald"/></div>
-   <div className="mt-5 grid gap-4 xl:grid-cols-[1.1fr_.9fr]"><Card className="p-5"><SectionTitle title="Order management" hint="Status changes are local demo actions." href="/orders"/><div className="space-y-3">{p.orders.map(order=><div key={order.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-white/[.025] p-3"><div className="min-w-0 flex-1"><div className="text-xs font-semibold">{order.service}</div><div className="mt-1 text-[10px] text-slate-500">{order.customer} · {order.id}</div></div><select aria-label={`Change order status ${order.id}`} data-testid={`owner-order-status-${order.id}`} value={order.status} onChange={e=>p.setOrderStatus(order.id,e.target.value)} className="form-field h-8 rounded-lg px-2 text-[10px]"><option>Pending</option><option>In progress</option><option>Completed</option></select></div>)}</div></Card><Card className="p-5"><SectionTitle title="Service availability" hint="Toggle what appears available in the demo."/><div className="space-y-2">{p.services.map(service=><div key={service.id} className="flex items-center gap-3 rounded-xl bg-white/[.025] p-3"><div className="min-w-0 flex-1"><div className="text-xs font-semibold">{service.name}</div><div className="mt-1 text-[10px] text-slate-500">{service.available?'Visible as available':'Marked unavailable'}</div></div><button aria-label={`${service.available?'Disable':'Enable'} ${service.name}`} data-testid={`button-toggle-service-${service.id}`} onClick={()=>p.toggleService(service.id)} className={`relative h-6 w-11 rounded-full transition-colors ${service.available?'bg-sky-400':'bg-slate-700'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${service.available?'translate-x-6':'translate-x-1'}`}/></button></div>)}</div></Card></div>
-   <div className="mt-4 grid gap-4 md:grid-cols-2"><Card className="flex items-center justify-between gap-3 p-5"><div><div className="text-sm font-semibold">Review the request queue</div><div className="mt-1 text-xs text-slate-500">{p.requests.length} local demo requests to look over.</div></div><Link href="/orders" className="btn-quiet rounded-xl px-3 py-2 text-xs">Open orders</Link></Card><Card className="flex items-center justify-between gap-3 p-5"><div><div className="text-sm font-semibold">Share a customer update</div><div className="mt-1 text-xs text-slate-500">Create an announcement in the demo feed.</div></div><Link href="/announcements" className="btn-quiet rounded-xl px-3 py-2 text-xs">Compose</Link></Card></div></>}
-  {tab==='services'&&<Card className="overflow-hidden"><div className="border-b soft-line p-5"><SectionTitle title="Services" hint="Availability switches only change local demo display."/></div>{p.services.map(service=><div key={service.id} className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><div className="rounded-xl bg-sky-300/[.08] p-2.5 text-sky-300"><service.icon size={17}/></div><div className="flex-1"><div className="text-sm font-semibold">{service.name}</div><div className="mt-1 text-[10px] text-slate-500">{service.price} · {service.available?'Available':'Unavailable'}</div></div><button onClick={()=>p.toggleService(service.id)} data-testid={`owner-service-toggle-${service.id}`} className="btn-quiet rounded-lg px-3 py-2 text-[10px] font-semibold">{service.available?'Set unavailable':'Set available'}</button></div>)}</Card>}
-  {tab==='conversations'&&<Card className="overflow-hidden"><div className="border-b soft-line p-5"><SectionTitle title="Customer conversations" hint="Each thread is private to that customer and the business owner."/></div>{p.chats.map(chat=><div key={chat.id} className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><Avatar initials={chat.initials}/><div className="min-w-0 flex-1"><div className="text-sm font-semibold">{chat.name}</div><div className="mt-1 truncate text-xs text-slate-500">{chat.context} · {chat.messages.at(-1)?.text}</div></div><button onClick={()=>{p.setActiveChat(chat.id);p.setPath('/messages')}} data-testid={`button-owner-open-chat-${chat.id}`} className="btn-quiet rounded-lg px-3 py-2 text-[10px] font-semibold">Open thread</button></div>)}</Card>}
-  <div className="mt-5 flex items-start gap-3 rounded-xl border border-sky-300/10 bg-sky-300/[.035] p-4 text-[11px] leading-relaxed text-slate-500"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-sky-300"/>Owner tools are simulated. No customer is contacted, no service request is transmitted, and no order system is connected.</div>
- </div>;
+function Empty({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
+  return <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center"><div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-400/[.07] text-slate-500"><ClipboardList size={16}/></div><div className="text-xs font-semibold text-slate-300">{title}</div><div className="mt-1 text-[11px] text-slate-500">{text}</div>{action && <div className="mt-4">{action}</div>}</div>;
 }
-function Restricted() { return <div className="enter mx-auto mt-10 max-w-xl"><Card className="p-7 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-400/10 text-violet-300"><ShieldCheck size={22}/></div><div className="display mt-4 text-xl font-semibold">Owner demo view</div><p className="mx-auto mb-0 mt-2 max-w-sm text-sm leading-relaxed text-slate-400">Switch the demo role to Owner view from the top bar to explore owner-only tools. There is no login or authentication in this demo.</p><div className="mt-4"><DemoTag/></div></Card></div>; }
+function DataState({ loading, error, retry, empty, children }: { loading: boolean; error: boolean; retry: () => void; empty: boolean; children: ReactNode }) {
+  if (loading) return <div className="space-y-3">{[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl border border-white/[.04] bg-white/[.025]"/> )}</div>;
+  if (error) return <div className="rounded-xl border border-rose-300/10 bg-rose-300/[.04] p-5 text-center"><p className="text-xs text-rose-100/80">This information could not be loaded.</p><button onClick={retry} className="btn-quiet rounded-lg px-3 py-2 text-xs">Retry</button></div>;
+  if (empty) return <Empty title="Nothing here yet" text="New activity will appear here when it is available." />;
+  return <>{children}</>;
+}
+function Stat({ label, value, note, icon: Icon }: { label: string; value: string; note: string; icon: typeof Image }) {
+  return <Card className="p-4 sm:p-5"><div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-400">{label}</span><span className="rounded-lg bg-sky-400/10 p-2 text-sky-300"><Icon size={16}/></span></div><div className="display mt-3 text-[28px] font-semibold tracking-tight">{value}</div><div className="mt-1 text-[11px] text-slate-500">{note}</div></Card>;
+}
+function Dashboard({ profile, identity, services, conversations, orders, announcements, conversationsLoading, conversationsError, retryConversations, ordersLoading, ordersError, retryOrders }: {
+  profile: UserProfile; identity: string; services: Service[]; conversations: Conversation[]; orders: Order[]; announcements: Announcement[];
+  conversationsLoading: boolean; conversationsError: boolean; retryConversations: () => void;
+  ordersLoading: boolean; ordersError: boolean; retryOrders: () => void;
+}) {
+  const owner = profile.role === 'owner';
+  return <div className="enter space-y-6">
+    <div className="relative overflow-hidden rounded-[22px] border border-sky-300/15 bg-gradient-to-br from-[#102341] via-[#111c34] to-[#1a1532] p-5 sm:p-8"><div className="absolute -right-12 -top-20 h-64 w-64 rounded-full border border-sky-300/10"/><div className="relative max-w-2xl"><div className="mb-3 inline-flex rounded-full border border-sky-300/20 bg-sky-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.16em] text-sky-200">{owner ? 'Owner workspace' : 'A clearer way to connect'}</div><h1 className="display max-w-xl text-3xl font-semibold leading-tight tracking-[-.045em] text-white sm:text-[40px]">Good to see you, {identity.split(/\s+/)[0]}.<br/><span className="text-sky-300">Your next idea starts here.</span></h1><p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-300/80">One direct connection for creative services, device support and every detail in between.</p><div className="mt-5 flex flex-wrap gap-2"><Link href="/services" className="btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs"><BriefcaseBusiness size={15}/>Explore services<ArrowUpRight size={14}/></Link><Link href="/messages" className="btn-quiet inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-200"><MessageCircle size={15}/>Message the business</Link></div></div><div className="absolute bottom-0 right-5 hidden h-full items-center sm:flex"><div className="relative flex h-44 w-44 items-center justify-center rounded-full border border-sky-300/15 bg-[#071225]/40"><div className="absolute inset-4 rounded-full border border-violet-300/20"/><div className="absolute h-28 w-28 rotate-[-28deg] rounded-[35%] border-2 border-sky-300/60"/><div className="display text-7xl font-bold text-sky-300">O</div><Sparkles className="absolute right-7 top-7 text-violet-300" size={18}/></div></div></div>
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><Stat label="Conversations" value={`${conversations.length}`} note="Private conversations" icon={MessageSquare}/><Stat label="Services" value={`${services.length}`} note="Available to explore" icon={BriefcaseBusiness}/><Stat label="Active orders" value={`${orders.filter((order) => order.status !== 'completed').length}`} note="Track progress here" icon={Package}/><Stat label="Updates" value={`${announcements.length}`} note="From Okenstyles" icon={Megaphone}/></div>
+    <div className="grid gap-5 xl:grid-cols-[1.35fr_.85fr]"><Card className="p-5"><SectionTitle title="Recent conversations" hint="Private chats with Okenstyles Graphics And Tech" href="/messages"/><DataState loading={conversationsLoading} error={conversationsError} retry={retryConversations} empty={!conversations.length}>{conversations.slice(0, 3).map((conversation) => <Link key={conversation.id} href="/messages" className="flex items-center gap-3 border-t border-white/[.06] py-3"><Avatar name={owner ? conversation.customerName || 'Customer' : 'Okenstyles'}/><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{owner ? conversation.customerName || 'Customer' : 'Okenstyles Graphics And Tech'}</div><div className="mt-1 truncate text-xs text-slate-500">{conversation.lastMessage || 'Conversation opened'}</div></div><ChevronRight size={15} className="text-slate-600"/></Link>)}</DataState><div className="mt-3 flex items-center gap-2 rounded-xl bg-sky-300/[.05] p-3 text-[11px] text-slate-400"><ShieldCheck size={15} className="shrink-0 text-sky-300"/>Customer chats are only with the business owner. No customer-to-customer messaging.</div></Card>
+      <div className="space-y-5"><Card className="p-5"><SectionTitle title="Quick actions" hint="Get to the useful stuff faster"/><div className="grid grid-cols-2 gap-2">{[{ label: 'Browse services', icon: BriefcaseBusiness, to: '/services' }, { label: 'Track an order', icon: Package, to: '/orders' }, { label: 'Send a message', icon: MessageCircle, to: '/messages' }, { label: 'View updates', icon: Megaphone, to: '/announcements' }].map((item) => <Link key={item.to} href={item.to} className="btn-quiet flex min-h-[76px] flex-col items-start justify-between rounded-xl p-3 text-xs font-semibold text-slate-300"><item.icon size={17} className="text-sky-300"/>{item.label}</Link>)}</div></Card><Card className="p-5"><SectionTitle title="Recent orders" href="/orders"/><DataState loading={ordersLoading} error={ordersError} retry={retryOrders} empty={!orders.length}>{orders.slice(0, 3).map((order) => <div key={order.id} className="flex items-center gap-3 border-t border-white/[.06] py-3"><Package size={16} className="text-sky-300"/><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{order.serviceName}</div><div className="mt-1 text-[10px] text-slate-500">{statusLabel(order.status)}</div></div></div>)}</DataState></Card></div></div>
+  </div>;
+}
+function Avatar({ name }: { name: string }) {
+  const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'O';
+  return <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-sky-300/15 bg-gradient-to-br from-sky-400/20 to-violet-400/20 text-xs font-bold text-sky-100">{initials}</div>;
+}
+function MessagesPage(props: {
+  role: Role; conversations: Conversation[]; active?: Conversation; messages: ConversationMessage[]; messagesLoading: boolean;
+  messagesError: boolean; retryMessages: () => void; activeId: string; selectConversation: (id: string) => void;
+  input: string; setInput: (v: string) => void; submit: (e: FormEvent) => void; sending: boolean;
+  openConversation: () => void; opening: boolean; conversationsLoading: boolean; conversationsError: boolean; retryConversations: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = props.conversations.filter((c) => (props.role === 'owner' ? c.customerName || 'Customer' : 'Okenstyles Graphics And Tech').toLowerCase().includes(search.toLowerCase()) || (c.lastMessage || '').toLowerCase().includes(search.toLowerCase()));
+  const ownSender = props.role;
+  return <div className="enter"><Heading eyebrow="Private customer ↔ business" title="Messages" description={props.role === 'owner' ? 'Manage private conversations with your customers.' : 'A direct line to Okenstyles Graphics And Tech. Only you and the business can see this conversation.'}/>
+    <div className="chat-layout grid min-h-[570px] grid-cols-[290px_1fr] gap-4">
+      <Card className="chat-list flex flex-col overflow-hidden"><div className="border-b soft-line p-4"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/><input aria-label="Search conversations" data-testid="input-search-conversations" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search conversations" className="form-field h-9 w-full rounded-lg pl-9 pr-3 text-xs"/></div><div className="mt-3 flex items-center justify-between text-[10px] text-slate-500"><span>{props.role === 'owner' ? 'Customer conversations' : 'Your business conversation'}</span><span>{props.conversations.length} threads</span></div></div>
+        <div className="flex-1 overflow-y-auto p-2"><DataState loading={props.conversationsLoading} error={props.conversationsError} retry={props.retryConversations} empty={!filtered.length}>{filtered.map((conversation) => <button key={conversation.id} onClick={() => props.selectConversation(conversation.id)} className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ${props.activeId === conversation.id ? 'bg-sky-400/[.09]' : 'hover:bg-white/[.035]'}`}><Avatar name={props.role === 'owner' ? conversation.customerName || 'Customer' : 'Okenstyles'}/><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{props.role === 'owner' ? conversation.customerName || 'Customer' : 'Okenstyles Graphics And Tech'}</div><div className="mt-1 truncate text-[10px] text-slate-500">{conversation.lastMessage || 'No messages yet'}</div></div></button>)}</DataState></div>
+        {props.role === 'customer' && !props.conversationsLoading && !props.conversations.length && <button disabled={props.opening} onClick={props.openConversation} className="btn-primary m-3 rounded-xl px-3 py-2.5 text-xs disabled:opacity-50">{props.opening ? 'Opening…' : 'Start a private conversation'}</button>}
+        <div className="border-t soft-line p-3 text-[10px] leading-relaxed text-slate-500"><ShieldCheck size={13} className="mr-1 inline text-sky-300"/>No customer-to-customer messaging. No online or last-seen status.</div>
+      </Card>
+      <Card className="flex min-h-[570px] flex-col overflow-hidden"><div className="flex items-center gap-3 border-b soft-line px-4 py-3.5"><Avatar name={props.active ? (props.role === 'owner' ? props.active.customerName || 'Customer' : 'Okenstyles') : 'Okenstyles'}/><div className="min-w-0 flex-1"><div className="text-sm font-semibold">{props.active ? (props.role === 'owner' ? props.active.customerName || 'Customer' : 'Okenstyles Graphics And Tech') : 'Business conversation'}</div><div className="mt-1 text-[10px] text-slate-500">Private conversation</div></div><div className="rounded-lg border border-sky-300/10 bg-sky-300/[.05] px-2 py-1.5 text-[9px] text-sky-200"><ShieldCheck size={11} className="mr-1 inline"/>Private</div></div>
+        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5"><DataState loading={props.messagesLoading} error={props.messagesError} retry={props.retryMessages} empty={!props.active || !props.messages.length}>{props.messages.map((message) => { const mine = message.senderRole === ownSender; return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[84%] ${mine ? 'text-right' : ''}`}><div className="mb-1.5 text-[9px] text-slate-600">{mine ? 'You' : props.role === 'owner' ? props.active?.customerName || 'Customer' : 'Okenstyles Graphics And Tech'} · {formatDate(message.createdAt)}</div><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${mine ? 'rounded-tr-sm bg-gradient-to-br from-[#155b8c] to-[#29478b] text-white' : 'rounded-tl-sm border border-white/[.07] bg-[#111a2c] text-slate-200'}`}>{message.body}</div></div></div>; })}</DataState></div>
+        <div className="border-t soft-line p-3"><form onSubmit={props.submit} className="flex gap-2"><input aria-label="Message" data-testid="input-message-composer" value={props.input} onChange={(e) => props.setInput(e.target.value)} placeholder="Write a message…" className="form-field h-11 min-w-0 flex-1 rounded-xl px-3 text-xs" maxLength={4000} disabled={!props.active}/><button type="submit" aria-label="Send message" data-testid="button-send-message" className="btn-primary flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-40" disabled={!props.input.trim() || !props.active || props.sending}><Send size={16}/></button></form></div>
+      </Card>
+    </div>
+  </div>;
+}
+function ServicesPage({ services, loading, error, retry, createOrder, creatingOrder }: { services: Service[]; loading: boolean; error: boolean; retry: () => void; createOrder: (id: string, details: string) => void; creatingOrder: boolean }) {
+  const [selected, setSelected] = useState<Service | null>(null);
+  const [details, setDetails] = useState('');
+  return <div className="enter"><Heading eyebrow="What we can do together" title="Services" description="Explore practical creative and tech services from Okenstyles Graphics And Tech."/>
+    <div className="mb-5 grid gap-4 sm:grid-cols-[1.3fr_.7fr]"><Card className="relative overflow-hidden p-5 sm:p-6"><div className="relative max-w-xl"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-violet-300">Small business. Big ideas.</div><h2 className="display mt-2 text-2xl font-semibold leading-tight">Make the next thing feel unmistakably yours.</h2><p className="mb-0 mt-2 max-w-lg text-xs leading-relaxed text-slate-400">From a brand refresh to a device back in working order, get personal help without the runaround.</p></div></Card><Card className="flex items-center gap-4 p-5"><div className="rounded-xl bg-sky-300/10 p-3 text-sky-300"><MonitorSmartphone size={21}/></div><div><div className="text-sm font-semibold">A real person, one conversation</div><div className="mt-1 text-xs leading-relaxed text-slate-500">Request details stay between you and the business owner.</div></div></Card></div>
+    <SectionTitle title="Available services" hint="Choose a starting point; pricing is confirmed with the business."/>
+    <DataState loading={loading} error={error} retry={retry} empty={!services.length}><div className="grid gap-4 lg:grid-cols-3">{services.map((service, index) => { const Icon = serviceIcon(service, index); return <Card key={service.id} className="flex flex-col p-5"><div className="mb-5 flex items-start justify-between"><div className={`rounded-2xl p-3 ${index % 2 ? 'bg-violet-400/10 text-violet-300' : 'bg-sky-300/10 text-sky-300'}`}><Icon size={21}/></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${service.available ? 'bg-emerald-300/10 text-emerald-200' : 'bg-slate-400/10 text-slate-500'}`}>{service.available ? 'Available' : 'Temporarily unavailable'}</span></div><div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">{service.category}</div><h3 className="display mb-0 mt-1.5 text-xl font-semibold">{service.name}</h3><p className="mt-2 min-h-[58px] text-xs leading-relaxed text-slate-400">{service.description}</p><div className="mt-auto flex items-center justify-between border-t soft-line pt-4"><span className="text-xs font-semibold text-slate-300">{service.priceLabel || 'Ask for a quote'}</span><button onClick={() => { setSelected(service); setDetails(''); }} disabled={!service.available} data-testid={`button-request-service-${service.id}`} className="btn-primary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] disabled:cursor-not-allowed disabled:opacity-40">Request service<ChevronRight size={14}/></button></div></Card>; })}</div></DataState>
+    <div className="mt-5 flex items-center gap-3 rounded-xl border border-sky-300/10 bg-sky-300/[.04] p-4 text-xs text-slate-400"><ShieldCheck size={16} className="shrink-0 text-sky-300"/>A request creates an order for this customer account. <Link href="/messages" className="ml-auto shrink-0 font-semibold text-sky-300">Message <ArrowUpRight size={12} className="inline"/></Link></div>
+    {selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050a13]/80 p-4"><Card className="w-full max-w-lg p-5"><div className="flex items-start justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[.17em] text-sky-300">New service request</div><h2 className="display mt-2 text-xl font-semibold">{selected.name}</h2></div><button onClick={() => setSelected(null)} aria-label="Close service request" className="btn-quiet rounded-lg p-2"><X size={16}/></button></div><label className="mt-4 block text-xs font-medium text-slate-300">What would you like help with?<textarea value={details} onChange={(event) => setDetails(event.target.value)} className="form-field mt-2 w-full rounded-xl p-3 text-xs leading-relaxed" rows={5} maxLength={4000} placeholder="Share goals, timing or useful context…"/></label><div className="mt-4 flex justify-end gap-2"><button onClick={() => setSelected(null)} className="btn-quiet rounded-xl px-4 py-2.5 text-xs">Cancel</button><button disabled={!details.trim() || creatingOrder} onClick={() => { createOrder(selected.id, details.trim()); setSelected(null); }} className="btn-primary rounded-xl px-4 py-2.5 text-xs disabled:opacity-40">{creatingOrder ? 'Sending…' : 'Send request'}</button></div></Card></div>}
+  </div>;
+}
+function serviceIcon(service: Service, index: number) {
+  const value = `${service.name} ${service.category}`.toLowerCase();
+  return value.includes('photo') || value.includes('design') ? (value.includes('photo') ? WandSparkles : Image) : index % 2 ? Wrench : BriefcaseBusiness;
+}
+function statusLabel(status: Order['status']) {
+  return status === 'in_progress' ? 'In progress' : status.charAt(0).toUpperCase() + status.slice(1);
+}
+function StatusBadge({ status }: { status: Order['status'] }) {
+  const styles = status === 'completed' ? 'border-emerald-300/15 bg-emerald-300/[.07] text-emerald-200' : status === 'in_progress' ? 'border-sky-300/15 bg-sky-300/[.07] text-sky-200' : 'border-amber-300/15 bg-amber-300/[.07] text-amber-200';
+  return <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${styles}`}><span className="h-1 w-1 rounded-full bg-current"/>{statusLabel(status)}</span>;
+}
+function OrdersPage({ orders, role, loading, error, retry, changeStatus, saving }: { orders: Order[]; role: Role; loading: boolean; error: boolean; retry: () => void; changeStatus: (id: string, status: Order['status']) => void; saving: boolean }) {
+  const groups: Order['status'][] = ['pending', 'in_progress', 'completed'];
+  return <div className="enter"><Heading eyebrow="A clear view of every step" title="Orders & requests" description={role === 'owner' ? 'Review customer orders and update their status.' : 'Follow your service requests from first step to finish.'}/>
+    <div className="mb-5 grid grid-cols-3 gap-3">{groups.map((status, i) => <Card key={status} className="p-4"><div className="flex items-center gap-2 text-xs text-slate-400"><span className={`h-2 w-2 rounded-full ${i === 0 ? 'bg-amber-300' : i === 1 ? 'bg-sky-300' : 'bg-emerald-300'}`}/>{statusLabel(status)}</div><div className="display mt-3 text-2xl font-semibold">{loading ? '—' : orders.filter((order) => order.status === status).length}</div><div className="mt-1 text-[10px] text-slate-600">orders</div></Card>)}</div>
+    <Card className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b soft-line p-5"><div><h2 className="display m-0 text-base font-semibold">Order activity</h2><p className="mb-0 mt-1 text-xs text-slate-500">Order details connected to your account</p></div><span className="rounded-lg bg-slate-400/[.08] px-2.5 py-1.5 text-[10px] text-slate-400">{orders.length} orders</span></div><div className="p-4"><DataState loading={loading} error={error} retry={retry} empty={!orders.length}>{orders.map((order) => <div key={order.id} data-testid={`order-row-${order.id}`} className="flex flex-col gap-3 border-b border-white/[.06] py-4 last:border-0 sm:flex-row sm:items-center"><div className="flex min-w-0 flex-1 items-center gap-3"><div className="rounded-xl bg-sky-300/[.08] p-2.5 text-sky-300"><Package size={18}/></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2 text-sm font-semibold">{order.serviceName}<span className="font-mono text-[10px] font-normal text-slate-600">{order.id}</span></div><div className="mt-1 text-[11px] text-slate-500">{role === 'owner' && `${order.customerName || 'Customer'} · `}{formatDate(order.createdAt)}</div></div></div><StatusBadge status={order.status}/>{role === 'owner' && <select aria-label={`Update status for ${order.id}`} value={order.status} disabled={saving} onChange={(event) => changeStatus(order.id, event.target.value as Order['status'])} className="form-field h-9 rounded-lg px-2 text-xs"><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select>}</div>)}</DataState></div></Card>
+    <div className="mt-5 flex items-start gap-3 rounded-xl border border-sky-300/10 bg-sky-300/[.035] p-4 text-[11px] leading-relaxed text-slate-500"><Clock3 size={16} className="mt-0.5 shrink-0 text-sky-300"/>Order updates are attached to the account and are visible to the customer and business owner.</div>
+  </div>;
+}
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function AnnouncementsPage({ role, announcements, loading, error, retry, title, setTitle, body, setBody, submit, publishing }: {
+  role: Role; announcements: Announcement[]; loading: boolean; error: boolean; retry: () => void;
+  title: string; setTitle: (value: string) => void; body: string; setBody: (value: string) => void;
+  submit: (event: FormEvent) => void; publishing: boolean;
+}) {
+  return <div className="enter"><Heading eyebrow="Notes from the studio" title="Announcements" description="Updates, availability and notes from Okenstyles Graphics And Tech."/>
+    {role === 'owner' && <Card className="mb-5 p-5"><div className="mb-4 flex items-center gap-3"><div className="rounded-xl bg-violet-400/10 p-2.5 text-violet-300"><Megaphone size={18}/></div><div><h2 className="display m-0 text-base font-semibold">Write an announcement</h2><p className="mb-0 mt-1 text-xs text-slate-500">Publish an update for customers.</p></div></div><form onSubmit={submit} className="space-y-3"><input aria-label="Announcement title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A clear, helpful title" maxLength={160} className="form-field h-10 w-full rounded-lg px-3 text-xs"/><textarea aria-label="Announcement message" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Share an update with customers…" rows={3} maxLength={4000} className="form-field w-full resize-y rounded-lg px-3 py-2.5 text-xs"/><div className="flex justify-end"><button type="submit" disabled={!title.trim() || !body.trim() || publishing} className="btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-40"><Plus size={14}/>{publishing ? 'Publishing…' : 'Publish update'}</button></div></form></Card>}
+    <SectionTitle title="Latest updates" hint={`${announcements.length} published posts`}/>
+    <DataState loading={loading} error={error} retry={retry} empty={!announcements.length}><div className="space-y-3">{announcements.map((item, index) => <Card key={item.id} className="relative overflow-hidden p-5 sm:p-6"><div className={`absolute inset-y-0 left-0 w-1 ${index === 0 ? 'bg-gradient-to-b from-sky-400 to-violet-400' : 'bg-sky-400/40'}`}/><div className="flex items-start gap-3 pl-1"><div className="mt-1 rounded-xl bg-sky-300/[.08] p-2.5 text-sky-300"><Megaphone size={16}/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="display m-0 text-base font-semibold">{item.title}</h3>{index === 0 && <span className="rounded-full bg-sky-300/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-200">Latest</span>}</div><div className="mt-1.5 text-[10px] text-slate-500">{formatDate(item.publishedAt)}</div><p className="mb-0 mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{item.body}</p></div><ArrowUpRight size={16} className="text-slate-600"/></div></Card>)}</div></DataState>
+    <div className="mt-5 flex gap-3 rounded-xl border border-white/[.06] bg-white/[.02] p-4 text-[11px] leading-relaxed text-slate-500"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-sky-300"/>Announcements are published by the business for its customers.</div>
+  </div>;
+}
+function AssistantPage({ conversations, active, messages, draft, setDraft, createDraft, approve, sending }: { conversations: Conversation[]; active?: Conversation; messages: ConversationMessage[]; draft: string; setDraft: (v: string) => void; createDraft: (mode: DraftMode) => void; approve: () => void; sending: boolean }) {
+  return <div className="enter"><Heading eyebrow="Owner tools · draft only" title="AI assistant" description="Sample writing tools for shaping replies and organizing work. Drafts are local and are not generated by a live AI service."/>
+    <div className="mb-5 grid gap-4 md:grid-cols-[1.05fr_.95fr]"><Card className="p-5 sm:p-6"><div className="flex items-center gap-3"><span className="rounded-xl bg-gradient-to-br from-sky-400/20 to-violet-400/20 p-3 text-sky-200"><Bot size={22}/></span><div><div className="display text-lg font-semibold">A thoughtful first draft.</div><div className="mt-1 text-xs text-slate-500">Your judgment always comes first.</div></div></div><p className="mb-0 mt-4 max-w-lg text-xs leading-relaxed text-slate-400">Choose a sample action to place text in the editor. Change every word, then explicitly approve before anything is sent.</p><div className="mt-5 flex flex-wrap gap-2"><button onClick={() => createDraft('reply')} className="btn-primary inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs"><Sparkles size={14}/>Draft a reply</button><button onClick={() => createDraft('summary')} className="btn-quiet inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-200"><MessageSquare size={14}/>Summarize chat</button><button onClick={() => createDraft('requests')} className="btn-quiet inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-200"><ClipboardList size={14}/>Organize orders</button></div></Card>
+      <Card className="p-5"><div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={16} className="text-violet-300"/>Owner approval required</div><p className="mt-2 text-xs leading-relaxed text-slate-400">Nothing enters a conversation until you explicitly approve it. Approval sends this text as a real message.</p><div className="mt-4 rounded-xl border border-white/[.06] bg-[#0b1221] p-3"><div className="mb-2 text-[10px] font-bold uppercase tracking-[.15em] text-slate-500">Selected private conversation</div>{active ? <div className="flex items-center gap-2 text-xs font-medium"><Avatar name={active.customerName || 'Customer'}/><div>{active.customerName || 'Customer'}<div className="mt-1 text-[10px] font-normal text-slate-500">{messages.length} messages</div></div></div> : <div className="text-xs text-slate-500">{conversations.length ? 'Choose a conversation in Messages before approving a draft.' : 'Open a customer conversation to use approval.'}</div>}</div></Card></div>
+    <Card className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b soft-line px-5 py-4"><div><h2 className="display m-0 text-base font-semibold">Draft editor</h2><p className="mb-0 mt-1 text-xs text-slate-500">Editable local sample · pending until you decide</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${draft ? 'bg-amber-300/10 text-amber-200' : 'bg-slate-400/[.08] text-slate-500'}`}>{draft ? 'Pending approval' : 'No pending draft'}</span></div><div className="p-5"><textarea aria-label="Edit assistant draft" value={draft} onChange={(e) => setDraft(e.target.value)} rows={8} maxLength={4000} placeholder="Choose a sample action above to prepare a draft. It remains pending until you approve it." className="form-field w-full resize-y rounded-xl p-4 text-sm leading-relaxed"/><div className="mt-3 flex flex-wrap items-center justify-between gap-3"><div className="max-w-lg text-[10px] leading-relaxed text-slate-500">Sample/local text only · never sent automatically.</div><div className="flex gap-2"><button onClick={() => setDraft('')} disabled={!draft} className="btn-quiet inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs text-slate-300 disabled:opacity-40"><X size={14}/>Discard</button><button onClick={approve} disabled={!draft.trim() || !active || sending} className="btn-primary inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs disabled:opacity-40"><Check size={14}/>{sending ? 'Sending…' : 'Approve and send'}</button></div></div></div></Card>
+  </div>;
+}
+function OwnerPage({ services, orders, announcements, conversations, servicesLoading, servicesError, retryServices, ordersLoading, ordersError, retryOrders, changeService, changeOrderStatus, savingService, savingOrder }: {
+  services: Service[]; orders: Order[]; announcements: Announcement[]; conversations: Conversation[]; servicesLoading: boolean; servicesError: boolean; retryServices: () => void; ordersLoading: boolean; ordersError: boolean; retryOrders: () => void;
+  changeService: (service: Service) => void; changeOrderStatus: (id: string, status: Order['status']) => void; savingService: boolean; savingOrder: boolean;
+}) {
+  const [tab, setTab] = useState<'overview' | 'services' | 'conversations'>('overview');
+  return <div className="enter"><Heading eyebrow="Owner workspace" title="Business overview" description="Manage customer orders, service availability and private conversations."/>
+    <div className="mb-5 flex gap-1 rounded-xl border border-white/[.06] bg-[#0c1322] p-1">{(['overview', 'services', 'conversations'] as const).map((value) => <button key={value} onClick={() => setTab(value)} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold capitalize ${tab === value ? 'bg-sky-300/10 text-sky-200' : 'text-slate-500 hover:text-slate-300'}`}>{value}</button>)}</div>
+    {tab === 'overview' && <><div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><Stat label="Customer threads" value={`${conversations.length}`} note="Private, owner-access only" icon={MessageSquare}/><Stat label="Orders in progress" value={`${orders.filter((order) => order.status === 'in_progress').length}`} note="Update status below" icon={Package}/><Stat label="Services" value={`${services.length}`} note="Owner-managed catalog" icon={BriefcaseBusiness}/><Stat label="Published updates" value={`${announcements.length}`} note="Customer announcements" icon={Megaphone}/></div>
+      <div className="mt-5 grid gap-4 xl:grid-cols-[1.1fr_.9fr]"><Card className="p-5"><SectionTitle title="Order management" hint="Status updates are reflected in the order record." href="/orders"/><DataState loading={ordersLoading} error={ordersError} retry={retryOrders} empty={!orders.length}>{orders.map((order) => <div key={order.id} className="flex flex-wrap items-center gap-2 border-t border-white/[.06] py-3"><div className="min-w-0 flex-1"><div className="text-xs font-semibold">{order.serviceName}</div><div className="mt-1 text-[10px] text-slate-500">{order.customerName || 'Customer'} · {order.id}</div></div><select aria-label={`Change order status ${order.id}`} disabled={savingOrder} value={order.status} onChange={(e) => changeOrderStatus(order.id, e.target.value as Order['status'])} className="form-field h-8 rounded-lg px-2 text-[10px]"><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select></div>)}</DataState></Card>
+      <Card className="p-5"><SectionTitle title="Service availability" hint="Changes update the customer catalog."/><DataState loading={servicesLoading} error={servicesError} retry={retryServices} empty={!services.length}>{services.map((service) => <div key={service.id} className="flex items-center gap-3 border-t border-white/[.06] py-3"><div className="min-w-0 flex-1"><div className="text-xs font-semibold">{service.name}</div><div className="mt-1 text-[10px] text-slate-500">{service.available ? 'Visible as available' : 'Marked unavailable'}</div></div><button disabled={savingService} aria-label={`${service.available ? 'Disable' : 'Enable'} ${service.name}`} onClick={() => changeService(service)} className={`relative h-6 w-11 rounded-full ${service.available ? 'bg-sky-400' : 'bg-slate-700'} disabled:opacity-50`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white ${service.available ? 'translate-x-6' : 'translate-x-1'}`}/></button></div>)}</DataState></Card></div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2"><Card className="flex items-center justify-between gap-3 p-5"><div><div className="text-sm font-semibold">Review the order queue</div><div className="mt-1 text-xs text-slate-500">{orders.length} orders to review.</div></div><Link href="/orders" className="btn-quiet rounded-xl px-3 py-2 text-xs">Open orders</Link></Card><Card className="flex items-center justify-between gap-3 p-5"><div><div className="text-sm font-semibold">Share a customer update</div><div className="mt-1 text-xs text-slate-500">Publish an announcement.</div></div><Link href="/announcements" className="btn-quiet rounded-xl px-3 py-2 text-xs">Compose</Link></Card></div></>}
+    {tab === 'services' && <Card className="overflow-hidden"><div className="border-b soft-line p-5"><SectionTitle title="Services" hint="Availability updates appear in the customer catalog."/></div>{services.map((service, index) => <div key={service.id} className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><div className="rounded-xl bg-sky-300/[.08] p-2.5 text-sky-300">{(() => { const Icon = serviceIcon(service, index); return <Icon size={17}/>; })()}</div><div className="flex-1"><div className="text-sm font-semibold">{service.name}</div><div className="mt-1 text-[10px] text-slate-500">{service.priceLabel || 'Ask for a quote'} · {service.available ? 'Available' : 'Unavailable'}</div></div><button disabled={savingService} onClick={() => changeService(service)} className="btn-quiet rounded-lg px-3 py-2 text-[10px] font-semibold disabled:opacity-50">{service.available ? 'Set unavailable' : 'Set available'}</button></div>)}</Card>}
+    {tab === 'conversations' && <Card className="overflow-hidden"><div className="border-b soft-line p-5"><SectionTitle title="Customer conversations" hint="Every thread is private to its customer and the business owner."/></div>{conversations.length ? conversations.map((conversation) => <Link key={conversation.id} href="/messages" className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><Avatar name={conversation.customerName || 'Customer'}/><div className="min-w-0 flex-1"><div className="text-sm font-semibold">{conversation.customerName || 'Customer'}</div><div className="mt-1 truncate text-xs text-slate-500">{conversation.lastMessage || 'No messages yet'}</div></div><span className="btn-quiet rounded-lg px-3 py-2 text-[10px] font-semibold">Open thread</span></Link>) : <div className="p-4"><Empty title="No conversations yet" text="Customer conversations will appear here when opened."/></div>}</Card>}
+    <div className="mt-5 flex items-start gap-3 rounded-xl border border-sky-300/10 bg-sky-300/[.035] p-4 text-[11px] leading-relaxed text-slate-500"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-sky-300"/>Owner tools are available according to your server profile. Customer messages remain private to the business.</div>
+  </div>;
+}
 export default App;

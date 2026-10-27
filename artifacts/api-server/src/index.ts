@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { seedOkenovaServices } from "./lib/okenova-seed";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +15,14 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+if (!process.env.OKENOVA_OWNER_EMAIL?.trim()) {
+  throw new Error(
+    "OKENOVA_OWNER_EMAIL must be configured before the API server can start.",
+  );
+}
+
+await seedOkenovaServices();
 
 app.listen(port, (err) => {
   if (err) {
