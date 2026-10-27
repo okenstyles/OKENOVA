@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "OKENOVA"
+description = "A mobile-first business communication and services demo for Okenstyles Graphics And Tech, with sample conversations, service requests, order tracking, announcements, and an owner workspace."
+version = "1.0.0"
+id = "artifacts/okenova"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19052
+
+[services.development]
+run = "pnpm --filter @workspace/okenova run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/okenova", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/okenova/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19052"
+BASE_PATH = "/"
