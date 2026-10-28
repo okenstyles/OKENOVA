@@ -26,6 +26,7 @@ OKENOVA_OWNER_EMAIL = "okenstyles@gmail.com"
 
 [nix]
 channel = "stable-25_05"
+packages = ["jdk17"]
 
 [objectStorage]
 defaultBucketID = "replit-objstore-7d929f65-67f7-4dbf-8728-85347ab81855"
