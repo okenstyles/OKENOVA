@@ -474,5 +474,11 @@ button { cursor:pointer; }
 .form-field:focus { border-color:#00b9fa; box-shadow:0 0 0 3px rgba(0,185,250,.1); }
 .enter { animation:enter .42s ease both; }
 @keyframes enter { from { opacity:0; transform:translateY(8px) } to {opacity:1;transform:translateY(0)} }
-@media(max-width:767px) { .sidebar{display:none}.mobile-nav{display:flex}.main-content{padding:20px 16px 104px!important}.chat-layout{grid-template-columns:1fr!important}.chat-list{display:none} }
+@media(max-width:767px) {
+  .sidebar{display:none}
+  .mobile-nav{display:flex;padding-bottom:max(12px,env(safe-area-inset-bottom,0px));}
+  .main-content{padding:20px 16px calc(104px + env(safe-area-inset-bottom,0px))!important}
+  .chat-layout{grid-template-columns:1fr!important}
+  .chat-list{display:none}
+}
 @media(min-width:768px) { .mobile-nav{display:none!important} }
