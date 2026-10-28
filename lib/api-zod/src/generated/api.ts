@@ -21,7 +21,7 @@ export const HealthCheckResponse = zod.object({
  * @summary Get the current authenticated app profile
  */
 export const GetCurrentUserResponse = zod.object({
-  "id": zod.string().uuid(),
+  "id": zod.uuid(),
   "role": zod.enum(['customer', 'owner']),
   "displayName": zod.string().nullable()
 })
@@ -31,7 +31,7 @@ export const GetCurrentUserResponse = zod.object({
  * @summary List services visible to customers
  */
 export const ListServicesResponseItem = zod.object({
-  "id": zod.string().uuid(),
+  "id": zod.uuid(),
   "name": zod.string(),
   "category": zod.string(),
   "description": zod.string(),
@@ -45,7 +45,7 @@ export const ListServicesResponse = zod.array(ListServicesResponseItem)
  * @summary Update a service as the business owner
  */
 export const UpdateServiceParams = zod.object({
-  "serviceId": zod.coerce.string().uuid()
+  "serviceId": zod.uuid()
 })
 
 export const updateServiceBodyNameMax = 120;
@@ -67,7 +67,7 @@ export const UpdateServiceBody = zod.object({
 })
 
 export const UpdateServiceResponse = zod.object({
-  "id": zod.string().uuid(),
+  "id": zod.uuid(),
   "name": zod.string(),
   "category": zod.string(),
   "description": zod.string(),
@@ -80,8 +80,8 @@ export const UpdateServiceResponse = zod.object({
  * @summary List conversations visible to the current user
  */
 export const ListConversationsResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "customerId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "customerId": zod.uuid(),
   "customerName": zod.string().nullable(),
   "lastMessage": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -94,8 +94,8 @@ export const ListConversationsResponse = zod.array(ListConversationsResponseItem
  * @summary Open or create the current customer's private business conversation
  */
 export const OpenConversationResponse = zod.object({
-  "id": zod.string().uuid(),
-  "customerId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "customerId": zod.uuid(),
   "customerName": zod.string().nullable(),
   "lastMessage": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -107,13 +107,13 @@ export const OpenConversationResponse = zod.object({
  * @summary List messages in an authorized private conversation
  */
 export const ListConversationMessagesParams = zod.object({
-  "conversationId": zod.coerce.string().uuid()
+  "conversationId": zod.uuid()
 })
 
 export const ListConversationMessagesResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "conversationId": zod.string().uuid(),
-  "senderId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "conversationId": zod.uuid(),
+  "senderId": zod.uuid(),
   "senderRole": zod.enum(['customer', 'owner']),
   "body": zod.string(),
   "createdAt": zod.coerce.date()
@@ -125,7 +125,7 @@ export const ListConversationMessagesResponse = zod.array(ListConversationMessag
  * @summary Send a message within an authorized private conversation
  */
 export const SendConversationMessageParams = zod.object({
-  "conversationId": zod.coerce.string().uuid()
+  "conversationId": zod.uuid()
 })
 
 export const sendConversationMessageBodyBodyMax = 4000;
@@ -137,9 +137,9 @@ export const SendConversationMessageBody = zod.object({
 })
 
 export const SendConversationMessageResponse = zod.object({
-  "id": zod.string().uuid(),
-  "conversationId": zod.string().uuid(),
-  "senderId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "conversationId": zod.uuid(),
+  "senderId": zod.uuid(),
   "senderRole": zod.enum(['customer', 'owner']),
   "body": zod.string(),
   "createdAt": zod.coerce.date()
@@ -150,10 +150,10 @@ export const SendConversationMessageResponse = zod.object({
  * @summary List orders visible to the current user
  */
 export const ListOrdersResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "serviceId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "serviceId": zod.uuid(),
   "serviceName": zod.string(),
-  "customerId": zod.string().uuid(),
+  "customerId": zod.uuid(),
   "customerName": zod.string().nullable(),
   "details": zod.string(),
   "status": zod.enum(['pending', 'in_progress', 'completed']),
@@ -170,15 +170,15 @@ export const createOrderBodyDetailsMax = 4000;
 
 
 export const CreateOrderBody = zod.object({
-  "serviceId": zod.string().uuid(),
+  "serviceId": zod.uuid(),
   "details": zod.string().min(1).max(createOrderBodyDetailsMax)
 })
 
 export const CreateOrderResponse = zod.object({
-  "id": zod.string().uuid(),
-  "serviceId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "serviceId": zod.uuid(),
   "serviceName": zod.string(),
-  "customerId": zod.string().uuid(),
+  "customerId": zod.uuid(),
   "customerName": zod.string().nullable(),
   "details": zod.string(),
   "status": zod.enum(['pending', 'in_progress', 'completed']),
@@ -190,7 +190,7 @@ export const CreateOrderResponse = zod.object({
  * @summary Update an order status as the business owner
  */
 export const UpdateOrderParams = zod.object({
-  "orderId": zod.coerce.string().uuid()
+  "orderId": zod.uuid()
 })
 
 export const UpdateOrderBody = zod.object({
@@ -198,10 +198,10 @@ export const UpdateOrderBody = zod.object({
 })
 
 export const UpdateOrderResponse = zod.object({
-  "id": zod.string().uuid(),
-  "serviceId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "serviceId": zod.uuid(),
   "serviceName": zod.string(),
-  "customerId": zod.string().uuid(),
+  "customerId": zod.uuid(),
   "customerName": zod.string().nullable(),
   "details": zod.string(),
   "status": zod.enum(['pending', 'in_progress', 'completed']),
@@ -213,7 +213,7 @@ export const UpdateOrderResponse = zod.object({
  * @summary List published announcements
  */
 export const ListAnnouncementsResponseItem = zod.object({
-  "id": zod.string().uuid(),
+  "id": zod.uuid(),
   "title": zod.string(),
   "body": zod.string(),
   "publishedAt": zod.coerce.date()
@@ -236,7 +236,7 @@ export const CreateAnnouncementBody = zod.object({
 })
 
 export const CreateAnnouncementResponse = zod.object({
-  "id": zod.string().uuid(),
+  "id": zod.uuid(),
   "title": zod.string(),
   "body": zod.string(),
   "publishedAt": zod.coerce.date()
