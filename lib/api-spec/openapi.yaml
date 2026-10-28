@@ -433,6 +433,7 @@ components:
       required: [id, name, category, description, priceLabel, available]
     ServiceUpdate:
       type: object
+      additionalProperties: false
       properties:
         name:
           type: string
@@ -494,6 +495,7 @@ components:
       required: [id, conversationId, senderId, senderRole, body, createdAt]
     MessageInput:
       type: object
+      additionalProperties: false
       properties:
         body:
           type: string
@@ -527,6 +529,7 @@ components:
       required: [id, serviceId, serviceName, customerId, customerName, details, status, createdAt]
     OrderInput:
       type: object
+      additionalProperties: false
       properties:
         serviceId:
           type: string
@@ -538,6 +541,7 @@ components:
       required: [serviceId, details]
     OrderUpdate:
       type: object
+      additionalProperties: false
       properties:
         status:
           type: string
@@ -559,6 +563,7 @@ components:
       required: [id, title, body, publishedAt]
     AnnouncementInput:
       type: object
+      additionalProperties: false
       properties:
         title:
           type: string

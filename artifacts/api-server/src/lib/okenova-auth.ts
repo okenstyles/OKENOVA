@@ -2,25 +2,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import type { NextFunction, Request, Response } from "express";
 import { db, okenovaUsers, type OkenovaUser } from "@workspace/db";
-
-export type AppRole = "customer" | "owner";
-
-export function roleForVerifiedEmail(
-  email: string | null | undefined,
-  verified: boolean,
-  configuredOwnerEmail: string | undefined,
-): AppRole {
-  const configured = configuredOwnerEmail?.trim().toLowerCase();
-  if (
-    verified &&
-    email &&
-    configured &&
-    email.trim().toLowerCase() === configured
-  ) {
-    return "owner";
-  }
-  return "customer";
-}
+import { roleForVerifiedEmail } from "./access-policy";
 
 async function getOrCreateProfile(clerkUserId: string): Promise<OkenovaUser> {
   const [existing] = await db

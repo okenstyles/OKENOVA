@@ -32,8 +32,9 @@ import {
 } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { Router, type IRouter, type Request, type Response } from "express";
+import { Router, type IRouter, type Response } from "express";
 import rateLimit from "express-rate-limit";
+import { canAccessConversation } from "../lib/access-policy";
 import { getOkenovaUser, requireOkenovaOwner, requireOkenovaUser } from "../lib/okenova-auth";
 
 const router: IRouter = Router();
@@ -43,7 +44,7 @@ const userWriteLimit = rateLimit({
   limit: 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: (req) => getAuth(req).userId ?? req.ip ?? "unknown",
+  keyGenerator: (req) => getAuth(req).userId ?? "unauthenticated",
 });
 
 const messageWriteLimit = rateLimit({
@@ -51,13 +52,10 @@ const messageWriteLimit = rateLimit({
   limit: 30,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: (req) => getAuth(req).userId ?? req.ip ?? "unknown",
+  keyGenerator: (req) => getAuth(req).userId ?? "unauthenticated",
 });
 
-function customerOnly(
-  req: Request,
-  res: Response,
-): boolean {
+function customerOnly(res: Response): boolean {
   const profile = getOkenovaUser(res);
   if (profile.role !== "customer") {
     res.status(403).json({ error: "Customer access required." });
@@ -78,7 +76,7 @@ async function findAccessibleConversation(
     .limit(1);
 
   if (!conversation) return null;
-  if (role === "customer" && conversation.customerId !== userId) return null;
+  if (!canAccessConversation(role, userId, conversation.customerId)) return null;
   return conversation;
 }
 
@@ -124,7 +122,7 @@ router.patch(
       res.status(400).json({ error: "Invalid service identifier." });
       return;
     }
-    const parsed = UpdateServiceBody.safeParse(req.body);
+    const parsed = UpdateServiceBody.strict().safeParse(req.body);
     if (!parsed.success || Object.keys(parsed.data ?? {}).length === 0) {
       res.status(400).json({ error: "Provide at least one valid service update." });
       return;
@@ -210,10 +208,20 @@ router.post(
   "/conversations",
   requireOkenovaUser,
   userWriteLimit,
-  async (_req, res): Promise<void> => {
+  async (req, res): Promise<void> => {
     const profile = getOkenovaUser(res);
     if (profile.role !== "customer") {
       res.status(403).json({ error: "Customer access required." });
+      return;
+    }
+    if (
+      req.body !== undefined &&
+      (!req.body ||
+        typeof req.body !== "object" ||
+        Array.isArray(req.body) ||
+        Object.keys(req.body).length > 0)
+    ) {
+      res.status(400).json({ error: "This endpoint does not accept a request body." });
       return;
     }
 
@@ -303,7 +311,7 @@ router.post(
       res.status(400).json({ error: "Invalid conversation identifier." });
       return;
     }
-    const parsed = SendConversationMessageBody.safeParse(req.body);
+    const parsed = SendConversationMessageBody.strict().safeParse(req.body);
     const body = parsed.success ? parsed.data.body.trim() : "";
     if (!parsed.success || !body) {
       res.status(400).json({ error: "Message text is required." });
@@ -384,9 +392,9 @@ router.post(
   userWriteLimit,
   async (req, res): Promise<void> => {
     const profile = getOkenovaUser(res);
-    if (!customerOnly(req, res)) return;
+    if (!customerOnly(res)) return;
 
-    const parsed = CreateOrderBody.safeParse(req.body);
+    const parsed = CreateOrderBody.strict().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid service request." });
       return;
@@ -443,7 +451,7 @@ router.patch(
       res.status(400).json({ error: "Invalid order identifier." });
       return;
     }
-    const parsed = UpdateOrderBody.safeParse(req.body);
+    const parsed = UpdateOrderBody.strict().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid order status." });
       return;
@@ -506,7 +514,7 @@ router.post(
   requireOkenovaOwner,
   userWriteLimit,
   async (req, res): Promise<void> => {
-    const parsed = CreateAnnouncementBody.safeParse(req.body);
+    const parsed = CreateAnnouncementBody.strict().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid announcement." });
       return;
