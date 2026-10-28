@@ -17,11 +17,17 @@ async function getOrCreateProfile(clerkUserId: string): Promise<OkenovaUser> {
   const primaryEmail = clerkUser.emailAddresses.find(
     (address) => address.id === clerkUser.primaryEmailAddressId,
   );
-  const role = roleForVerifiedEmail(
+  const ownerRole = roleForVerifiedEmail(
     primaryEmail?.emailAddress,
     primaryEmail?.verification?.status === "verified",
     process.env.OKENOVA_OWNER_EMAIL,
   );
+  const role =
+    ownerRole === "owner"
+      ? ownerRole
+      : clerkUser.publicMetadata.okenovaRole === "staff"
+        ? "staff"
+        : "customer";
   const displayName =
     [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
     null;

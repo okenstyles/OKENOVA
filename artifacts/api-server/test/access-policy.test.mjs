@@ -32,6 +32,7 @@ test("customers can access only their own conversation", () => {
   assert.equal(canAccessConversation("customer", "customer-a", "customer-a"), true);
   assert.equal(canAccessConversation("customer", "customer-a", "customer-b"), false);
   assert.equal(canAccessConversation("owner", "business-owner", "customer-b"), true);
+  assert.equal(canAccessConversation("staff", "staff-a", "customer-b"), false);
 });
 
 test("generated write schemas reject caller-controlled identity fields", () => {

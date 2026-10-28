@@ -37,7 +37,7 @@ const clerkAppearance = {
   options: {
     logoPlacement: 'inside' as const,
     logoLinkUrl: basePath || '/',
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
+    logoImageUrl: `${window.location.origin}${basePath}/okenova-mark.png`,
   },
   variables: {
     colorPrimary: '#50c9f5', colorForeground: '#e8eef9', colorMutedForeground: '#93a1b8',
@@ -81,7 +81,7 @@ const nav = [
   { path: '/orders', label: 'Orders', icon: Package },
   { path: '/announcements', label: 'Announcements', icon: Megaphone },
   { path: '/assistant', label: 'AI assistant', icon: Bot, owner: true },
-  { path: '/owner', label: 'Owner workspace', icon: Settings2, owner: true },
+  { path: '/owner', label: 'Admin dashboard', icon: Settings2, owner: true },
 ];
 type Role = UserProfile['role'];
 type DraftMode = 'reply' | 'summary' | 'requests';
@@ -91,7 +91,26 @@ type WorkspaceProps = {
 };
 
 function App() {
-  return <TooltipProvider><WouterRouter base={basePath}><ClerkRoutes /></WouterRouter><Toaster /></TooltipProvider>;
+  return <TooltipProvider><WouterRouter base={basePath}><ClerkRoutes /></WouterRouter><StartupAnimation/><Toaster /></TooltipProvider>;
+}
+function StartupAnimation() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('okenova-intro-seen')) return;
+      sessionStorage.setItem('okenova-intro-seen', '1');
+    } catch {
+      // Storage can be unavailable in restrictive browser modes.
+    }
+    setVisible(true);
+    const timer = window.setTimeout(() => setVisible(false), 2200);
+    return () => window.clearTimeout(timer);
+  }, []);
+  if (!visible) return null;
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050916] transition-opacity" role="status" aria-label="OKENOVA starting">
+    <video autoPlay muted playsInline preload="auto" className="max-h-[min(74vh,520px)] w-[min(92vw,900px)] object-contain" src={`${basePath}/okenova-intro.mp4`} onError={() => setVisible(false)} aria-label="OKENOVA logo animation"/>
+    <button type="button" onClick={() => setVisible(false)} className="absolute bottom-6 rounded-full border border-white/15 px-4 py-2 text-xs text-slate-300" data-testid="button-skip-intro">Skip intro</button>
+  </div>;
 }
 function ClerkRoutes() {
   const [, setLocation] = useLocation();
@@ -99,8 +118,8 @@ function ClerkRoutes() {
     publishableKey={clerkPubKey}
     proxyUrl={clerkProxyUrl}
     appearance={clerkAppearance}
-    signInUrl={`${basePath}/sign-in`}
-    signUpUrl={`${basePath}/sign-up`}
+    signInUrl={`${basePath}/customer/sign-in`}
+    signUpUrl={`${basePath}/customer/sign-up`}
     localization={{
       signIn: { start: { title: 'Welcome back', subtitle: 'Your work, conversations and updates in one place.' } },
       signUp: { start: { title: 'Join Okenova', subtitle: 'Create your customer account to get started.' } },
@@ -112,9 +131,16 @@ function ClerkRoutes() {
       <ClerkCacheSync />
       <RoutedErrorBoundary><Switch>
         <Route path="/" component={PublicLanding} />
-        <Route path="/sign-in/*?" component={SignInPage} />
-        <Route path="/sign-up/*?" component={SignUpPage} />
+        <Route path="/admin/sign-in/*?"><SignInPage audience="Admin"/></Route>
+        <Route path="/staff/sign-in/*?"><SignInPage audience="Staff"/></Route>
+        <Route path="/customer/sign-in/*?"><SignInPage audience="Customer"/></Route>
+        <Route path="/customer/sign-up/*?"><SignUpPage/></Route>
+        <Route path="/sign-in/*?"><Redirect to="/customer/sign-in"/></Route>
+        <Route path="/sign-up/*?"><Redirect to="/customer/sign-up"/></Route>
         <Route path="/dashboard"><ProtectedWorkspace /></Route>
+        <Route path="/admin/dashboard"><ProtectedWorkspace /></Route>
+        <Route path="/staff/dashboard"><ProtectedWorkspace /></Route>
+        <Route path="/customer/dashboard"><ProtectedWorkspace /></Route>
         <Route path="/messages"><ProtectedWorkspace /></Route>
         <Route path="/services"><ProtectedWorkspace /></Route>
         <Route path="/orders"><ProtectedWorkspace /></Route>
@@ -147,32 +173,36 @@ function PublicLanding() {
   const { isLoaded, isSignedIn } = useAuth();
   if (isLoaded && isSignedIn) return <Redirect to="/dashboard" />;
   return <div className="app-shell min-h-[100dvh] text-slate-100">
-    <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-6 sm:px-8"><Brand/><div className="flex items-center gap-2"><Link href="/sign-in" className="btn-quiet rounded-xl px-4 py-2.5 text-xs font-semibold">Sign in</Link><Link href="/sign-up" className="btn-primary rounded-xl px-4 py-2.5 text-xs">Create account</Link></div></header>
+    <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-6 sm:px-8"><Brand/><div className="flex items-center gap-2"><Link href="/customer/sign-in" className="btn-quiet rounded-xl px-4 py-2.5 text-xs font-semibold">Customer sign in</Link><Link href="/customer/sign-up" className="btn-primary rounded-xl px-4 py-2.5 text-xs">Create account</Link></div></header>
     <main className="mx-auto max-w-7xl px-5 pb-20 pt-10 sm:px-8 sm:pt-20">
       <section className="relative overflow-hidden rounded-[28px] border border-sky-300/15 bg-gradient-to-br from-[#102341] via-[#111c34] to-[#1a1532] px-6 py-12 sm:px-12 sm:py-16">
         <div className="absolute -right-16 -top-24 h-96 w-96 rounded-full border border-sky-300/10"/><div className="absolute right-20 top-14 h-52 w-52 rounded-full border border-violet-300/10"/>
         <div className="relative max-w-3xl"><span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.18em] text-sky-200">Okenstyles Graphics And Tech</span>
           <h1 className="display mt-7 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-[-.055em] sm:text-6xl">Your next idea<br/><span className="text-sky-300">starts with a real connection.</span></h1>
           <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300/80 sm:text-base">Creative services, device support and a direct line to the people doing the work. Everything you need, without the runaround.</p>
-          <div className="mt-8 flex flex-wrap gap-3"><Link href="/sign-up" className="btn-primary inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm">Get started <ArrowUpRight size={16}/></Link><Link href="/sign-in" className="btn-quiet inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-200">I already have an account <ChevronRight size={15}/></Link></div>
+          <div className="mt-8 flex flex-wrap gap-3"><Link href="/customer/sign-up" className="btn-primary inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm">Get started <ArrowUpRight size={16}/></Link><Link href="/customer/sign-in" className="btn-quiet inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-200">I already have an account <ChevronRight size={15}/></Link></div>
         </div>
         <div className="relative mt-12 grid gap-3 sm:grid-cols-3">
           {[['01','Creative work','Brand identity, graphics and thoughtful photo editing.'],['02','Everyday tech','Practical support to get your devices working again.'],['03','One private thread','Talk directly with the business owner.']].map(([n,title,copy])=><div key={n} className="rounded-2xl border border-white/[.08] bg-[#091426]/55 p-5 backdrop-blur"><div className="font-mono text-xs text-sky-300">{n}</div><h2 className="display mt-3 text-lg font-semibold">{title}</h2><p className="mb-0 mt-2 text-xs leading-relaxed text-slate-400">{copy}</p></div>)}
         </div>
       </section>
       <section className="grid gap-8 py-16 sm:grid-cols-[.8fr_1.2fr] sm:py-24"><div><div className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300">A simpler way to get it done</div><h2 className="display mt-3 text-3xl font-semibold leading-tight tracking-tight">Good work starts with a clear conversation.</h2></div><div className="grid gap-4 sm:grid-cols-2">{[['Choose a service','Explore the available services and send the details that matter.'],['Keep everything close','Orders, updates and messages stay together in your account.']].map(([t,c])=><div key={t} className="panel p-5"><h3 className="display text-base font-semibold">{t}</h3><p className="mb-0 mt-2 text-xs leading-relaxed text-slate-400">{c}</p></div>)}</div></section>
-      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[.08] py-6 text-xs text-slate-500"><Brand/><span>Private conversations. No online or last-seen indicators.</span></footer>
+      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[.08] py-6 text-xs text-slate-500"><Brand/><div className="flex gap-4"><Link href="/admin/sign-in" className="hover:text-slate-300">Admin</Link><Link href="/staff/sign-in" className="hover:text-slate-300">Staff</Link><span>Private conversations. No online or last-seen indicators.</span></div></footer>
     </main>
   </div>;
 }
 function AuthFrame({ children }: { children: ReactNode }) {
   return <div className="app-shell flex min-h-[100dvh] flex-col items-center justify-center gap-7 px-4 py-8"><Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"><Brand/></Link>{children}<p className="max-w-sm text-center text-[11px] leading-relaxed text-slate-500">Okenova keeps your business conversations private and connected to your account.</p></div>;
 }
-function SignInPage() {
-  return <AuthFrame><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`}/></AuthFrame>;
+function SignInPage({ audience }: { audience: 'Admin' | 'Staff' | 'Customer' }) {
+  const path = `/${audience.toLowerCase()}/sign-in`;
+  return <AuthFrame><div className="w-full max-w-[440px]">
+    <div className="mb-4 text-center"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-sky-300">{audience} access</div><h1 className="display mt-2 text-xl font-semibold text-slate-100">{audience === 'Customer' ? 'Welcome back' : `${audience} sign in`}</h1></div>
+    <SignIn routing="path" path={`${basePath}${path}`} signUpUrl={`${basePath}/customer/sign-up`} forceRedirectUrl={`${basePath}/dashboard`}/>
+  </div></AuthFrame>;
 }
 function SignUpPage() {
-  return <AuthFrame><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`}/></AuthFrame>;
+  return <AuthFrame><SignUp routing="path" path={`${basePath}/customer/sign-up`} signInUrl={`${basePath}/customer/sign-in`} forceRedirectUrl={`${basePath}/dashboard`}/></AuthFrame>;
 }
 function ProtectedWorkspace() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -181,10 +211,17 @@ function ProtectedWorkspace() {
   return <WorkspaceLoader/>;
 }
 function WorkspaceLoader() {
+  const [location] = useLocation();
   const { user } = useUser();
   const profileQuery = useGetCurrentUser();
   if (profileQuery.isLoading) return <LoadingScreen label="Loading your workspace"/>;
   if (profileQuery.isError || !profileQuery.data) return <QueryError message="We couldn't load your account profile." retry={() => void profileQuery.refetch()}/>;
+  const role = profileQuery.data.role;
+  const expectedDashboard = role === 'owner' ? '/admin/dashboard' : role === 'staff' ? '/staff/dashboard' : '/customer/dashboard';
+  const requestedPath = stripBase(location);
+  if (['/dashboard', '/admin/dashboard', '/staff/dashboard', '/customer/dashboard'].includes(requestedPath) && requestedPath !== expectedDashboard) {
+    return <Redirect to={expectedDashboard}/>;
+  }
   return <Workspace profile={profileQuery.data} identity={user?.fullName || user?.primaryEmailAddress?.emailAddress || 'Your account'}/>;
 }
 function LoadingScreen({ label }: { label: string }) {
@@ -205,7 +242,8 @@ function Workspace({ profile, identity }: WorkspaceProps) {
   const [notice, setNotice] = useState('');
   const client = useQueryClient();
   const owner = profile.role === 'owner';
-  const currentPath = path === '/' ? '/dashboard' : path;
+  const staff = profile.role === 'staff';
+  const currentPath = path === '/' ? '/dashboard' : path.endsWith('/dashboard') ? (owner ? '/owner' : '/dashboard') : path;
   const title = nav.find((item) => item.path === currentPath)?.label ?? 'Dashboard';
   const servicesQuery = useListServices();
   const conversationsQuery = useListConversations();
@@ -226,11 +264,12 @@ function Workspace({ profile, identity }: WorkspaceProps) {
   const orders = ordersQuery.data ?? [];
   const announcements = announcementsQuery.data ?? [];
   const messages = messagesQuery.data ?? [];
-  const filteredNav = nav.filter((item) => !item.owner || owner);
+  const filteredNav = nav.filter((item) => staff ? item.path === '/dashboard' : (!item.owner || owner));
   const notify = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(''), 3000); };
   useEffect(() => {
     if (!owner && ['/assistant', '/owner'].includes(currentPath)) setPath('/dashboard', { replace: true });
-  }, [owner, currentPath, setPath]);
+    if (staff && currentPath !== '/dashboard') setPath('/staff/dashboard', { replace: true });
+  }, [owner, staff, currentPath, setPath]);
   if (currentPath === '/assistant' || currentPath === '/owner') {
     if (!owner) return <LoadingScreen label="Opening your workspace"/>;
   }
@@ -296,6 +335,7 @@ function Workspace({ profile, identity }: WorkspaceProps) {
     });
   };
   const page = () => {
+    if (staff) return <StaffDashboard/>;
     switch (currentPath) {
       case '/messages': return <MessagesPage role={profile.role} conversations={conversations} active={activeConversation} messages={messages} messagesLoading={messagesQuery.isLoading} messagesError={messagesQuery.isError} retryMessages={() => void messagesQuery.refetch()} activeId={activeConversation?.id ?? ''} selectConversation={setActiveConversationId} input={messageInput} setInput={setMessageInput} submit={submitMessage} sending={sendMessage.isPending} openConversation={startConversation} opening={openConversation.isPending} conversationsLoading={conversationsQuery.isLoading} conversationsError={conversationsQuery.isError} retryConversations={() => void conversationsQuery.refetch()}/>;
       case '/services': return <ServicesPage services={services} loading={servicesQuery.isLoading} error={servicesQuery.isError} retry={() => void servicesQuery.refetch()} createOrder={(serviceId, details) => createOrder.mutate({ data: { serviceId, details } }, { onSuccess: async () => { await invalidate(getListOrdersQueryKey()); notify('Your service request was sent.'); }, onError: () => notify('The request could not be created.') })} creatingOrder={createOrder.isPending}/>;
@@ -313,7 +353,7 @@ function Workspace({ profile, identity }: WorkspaceProps) {
     </aside>
     <div className="ml-0 flex min-h-[100dvh] w-full flex-col md:ml-[250px]">
       <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-white/[.06] bg-[#090d19]/90 px-4 backdrop-blur-xl sm:px-7">
-        <div className="flex items-center gap-3"><button className="btn-quiet rounded-lg p-2 md:hidden" aria-label="Open navigation" data-testid="button-mobile-menu" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={18}/></button><div><div className="display text-lg font-bold tracking-tight">{title}</div><div className="hidden text-[11px] text-slate-500 sm:block">Okenstyles Graphics And Tech <span className="mx-1.5 text-slate-700">/</span> {owner ? 'Owner workspace' : 'Customer workspace'}</div></div></div>
+        <div className="flex items-center gap-3"><button className="btn-quiet rounded-lg p-2 md:hidden" aria-label="Open navigation" data-testid="button-mobile-menu" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={18}/></button><div><div className="display text-lg font-bold tracking-tight">{title}</div><div className="hidden text-[11px] text-slate-500 sm:block">Okenstyles Graphics And Tech <span className="mx-1.5 text-slate-700">/</span> {owner ? 'Admin workspace' : staff ? 'Staff workspace' : 'Customer workspace'}</div></div></div>
         <div className="flex items-center gap-2 sm:gap-3"><div className="hidden max-w-48 truncate text-xs text-slate-400 sm:block" title={identity}>{identity}</div><ProfileAvatar identity={identity}/><SignOutButton/></div>
       </header>
       {mobileMenu && <div className="fixed inset-0 z-40 bg-[#080d18] p-5 md:hidden"><div className="mb-7 flex items-center justify-between"><Brand/><button onClick={() => setMobileMenu(false)} className="btn-quiet rounded-lg p-2" aria-label="Close menu" data-testid="button-close-mobile-menu"><X size={17}/></button></div><nav className="flex flex-col gap-2">{filteredNav.map((item) => <Link key={item.path} onClick={() => setMobileMenu(false)} href={item.path} className="nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300"><item.icon size={18}/>{item.label}<ChevronRight className="ml-auto" size={15}/></Link>)}</nav></div>}
@@ -328,7 +368,13 @@ function SignOutButton() {
   return <button onClick={() => void signOut({ redirectUrl: basePath || '/' })} className="btn-quiet rounded-xl px-3 py-2 text-[10px] font-semibold text-slate-300" data-testid="button-sign-out">Sign out</button>;
 }
 function Brand() {
-  return <div className="flex items-center gap-3"><div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-sky-300/25 bg-gradient-to-br from-sky-400/20 to-violet-500/20 text-lg font-bold text-sky-200"><span className="display">O</span><span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-violet-400"/></div><div><div className="display text-[15px] font-bold tracking-[.15em]">OKENOVA</div><div className="text-[9px] tracking-wide text-slate-500">YOUR BUSINESS. YOUR CONNECTIONS.</div></div></div>;
+  return <div className="flex items-center gap-3"><img src={`${basePath}/okenova-mark.png`} alt="OKENOVA logo" className="h-10 w-10 rounded-xl object-cover" /><div><div className="display text-[15px] font-bold tracking-[.15em]">OKENOVA</div><div className="text-[9px] tracking-wide text-slate-500">CONNECT · GROW · SUCCEED</div></div></div>;
+}
+function StaffDashboard() {
+  return <div className="enter mx-auto max-w-3xl space-y-5">
+    <Heading eyebrow="Staff workspace" title="Welcome to OKENOVA" description="Staff access is kept separate from customer and administrator accounts."/>
+    <Card className="p-6 sm:p-8"><div className="flex items-start gap-4"><ShieldCheck className="mt-1 shrink-0 text-sky-300" size={22}/><div><h2 className="display m-0 text-lg font-semibold">No work has been assigned yet</h2><p className="mb-0 mt-2 text-sm leading-relaxed text-slate-400">Your account has no customer conversations or orders assigned. An administrator must provision staff access before those records are available.</p></div></div></Card>
+  </div>;
 }
 function ProfileAvatar({ identity }: { identity: string }) {
   const initials = identity.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';

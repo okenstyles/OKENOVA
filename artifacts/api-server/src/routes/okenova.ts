@@ -34,7 +34,7 @@ import { getAuth } from "@clerk/express";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { Router, type IRouter, type Response } from "express";
 import rateLimit from "express-rate-limit";
-import { canAccessConversation } from "../lib/access-policy";
+import { canAccessConversation, type OkenovaRole } from "../lib/access-policy";
 import { getOkenovaUser, requireOkenovaOwner, requireOkenovaUser } from "../lib/okenova-auth";
 
 const router: IRouter = Router();
@@ -66,7 +66,7 @@ function customerOnly(res: Response): boolean {
 
 async function findAccessibleConversation(
   conversationId: string,
-  role: "customer" | "owner",
+  role: OkenovaRole,
   userId: string,
 ) {
   const [conversation] = await db

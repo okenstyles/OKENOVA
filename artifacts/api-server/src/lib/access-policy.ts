@@ -1,4 +1,4 @@
-export type OkenovaRole = "customer" | "owner";
+export type OkenovaRole = "customer" | "owner" | "staff";
 
 export function roleForVerifiedEmail(
   email: string | null | undefined,
@@ -22,5 +22,5 @@ export function canAccessConversation(
   requesterId: string,
   customerId: string,
 ): boolean {
-  return role === "owner" || requesterId === customerId;
+  return role === "owner" || (role === "customer" && requesterId === customerId);
 }

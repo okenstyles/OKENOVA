@@ -410,7 +410,7 @@ components:
           format: uuid
         role:
           type: string
-          enum: [customer, owner]
+          enum: [customer, owner, staff]
         displayName:
           type: ["string", "null"]
       required: [id, role, displayName]
@@ -486,7 +486,7 @@ components:
           format: uuid
         senderRole:
           type: string
-          enum: [customer, owner]
+          enum: [customer, owner, staff]
         body:
           type: string
         createdAt:
