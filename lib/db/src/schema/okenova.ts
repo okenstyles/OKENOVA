@@ -11,7 +11,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const okenovaRole = pgEnum("okenova_role", ["customer", "owner", "staff"]);
+export const okenovaRole = pgEnum("okenova_role", ["customer", "owner"]);
 export const okenovaOrderStatus = pgEnum("okenova_order_status", [
   "pending",
   "in_progress",

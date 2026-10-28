@@ -3,7 +3,7 @@ import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@cler
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
+import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation, useSearch } from 'wouter';
 import {
   ArrowUpRight, Bot, BriefcaseBusiness, Check, ChevronRight, ClipboardList,
   Clock3, Image, LayoutDashboard, Menu, MessageCircle, MessageSquare, Megaphone,
@@ -132,14 +132,12 @@ function ClerkRoutes() {
       <RoutedErrorBoundary><Switch>
         <Route path="/" component={PublicLanding} />
         <Route path="/admin/sign-in/*?"><SignInPage audience="Admin"/></Route>
-        <Route path="/staff/sign-in/*?"><SignInPage audience="Staff"/></Route>
         <Route path="/customer/sign-in/*?"><SignInPage audience="Customer"/></Route>
         <Route path="/customer/sign-up/*?"><SignUpPage/></Route>
         <Route path="/sign-in/*?"><Redirect to="/customer/sign-in"/></Route>
         <Route path="/sign-up/*?"><Redirect to="/customer/sign-up"/></Route>
         <Route path="/dashboard"><ProtectedWorkspace /></Route>
         <Route path="/admin/dashboard"><ProtectedWorkspace /></Route>
-        <Route path="/staff/dashboard"><ProtectedWorkspace /></Route>
         <Route path="/customer/dashboard"><ProtectedWorkspace /></Route>
         <Route path="/messages"><ProtectedWorkspace /></Route>
         <Route path="/services"><ProtectedWorkspace /></Route>
@@ -187,14 +185,14 @@ function PublicLanding() {
         </div>
       </section>
       <section className="grid gap-8 py-16 sm:grid-cols-[.8fr_1.2fr] sm:py-24"><div><div className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300">A simpler way to get it done</div><h2 className="display mt-3 text-3xl font-semibold leading-tight tracking-tight">Good work starts with a clear conversation.</h2></div><div className="grid gap-4 sm:grid-cols-2">{[['Choose a service','Explore the available services and send the details that matter.'],['Keep everything close','Orders, updates and messages stay together in your account.']].map(([t,c])=><div key={t} className="panel p-5"><h3 className="display text-base font-semibold">{t}</h3><p className="mb-0 mt-2 text-xs leading-relaxed text-slate-400">{c}</p></div>)}</div></section>
-      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[.08] py-6 text-xs text-slate-500"><Brand/><div className="flex gap-4"><Link href="/admin/sign-in" className="hover:text-slate-300">Admin</Link><Link href="/staff/sign-in" className="hover:text-slate-300">Staff</Link><span>Private conversations. No online or last-seen indicators.</span></div></footer>
+      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[.08] py-6 text-xs text-slate-500"><Brand/><div className="flex gap-4"><Link href="/admin/sign-in" className="hover:text-slate-300">Admin</Link><span>Private conversations. No online or last-seen indicators.</span></div></footer>
     </main>
   </div>;
 }
 function AuthFrame({ children }: { children: ReactNode }) {
   return <div className="app-shell flex min-h-[100dvh] flex-col items-center justify-center gap-7 px-4 py-8"><Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"><Brand/></Link>{children}<p className="max-w-sm text-center text-[11px] leading-relaxed text-slate-500">Okenova keeps your business conversations private and connected to your account.</p></div>;
 }
-function SignInPage({ audience }: { audience: 'Admin' | 'Staff' | 'Customer' }) {
+function SignInPage({ audience }: { audience: 'Admin' | 'Customer' }) {
   const path = `/${audience.toLowerCase()}/sign-in`;
   return <AuthFrame><div className="w-full max-w-[440px]">
     <div className="mb-4 text-center"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-sky-300">{audience} access</div><h1 className="display mt-2 text-xl font-semibold text-slate-100">{audience === 'Customer' ? 'Welcome back' : `${audience} sign in`}</h1></div>
@@ -217,9 +215,9 @@ function WorkspaceLoader() {
   if (profileQuery.isLoading) return <LoadingScreen label="Loading your workspace"/>;
   if (profileQuery.isError || !profileQuery.data) return <QueryError message="We couldn't load your account profile." retry={() => void profileQuery.refetch()}/>;
   const role = profileQuery.data.role;
-  const expectedDashboard = role === 'owner' ? '/admin/dashboard' : role === 'staff' ? '/staff/dashboard' : '/customer/dashboard';
+  const expectedDashboard = role === 'owner' ? '/admin/dashboard' : '/customer/dashboard';
   const requestedPath = stripBase(location);
-  if (['/dashboard', '/admin/dashboard', '/staff/dashboard', '/customer/dashboard'].includes(requestedPath) && requestedPath !== expectedDashboard) {
+  if (['/dashboard', '/admin/dashboard', '/customer/dashboard'].includes(requestedPath) && requestedPath !== expectedDashboard) {
     return <Redirect to={expectedDashboard}/>;
   }
   return <Workspace profile={profileQuery.data} identity={user?.fullName || user?.primaryEmailAddress?.emailAddress || 'Your account'}/>;
@@ -233,7 +231,12 @@ function QueryError({ message, retry }: { message: string; retry: () => void }) 
 
 function Workspace({ profile, identity }: WorkspaceProps) {
   const [path, setPath] = useLocation();
+  const search = useSearch();
   const [activeConversationId, setActiveConversationId] = useState('');
+  useEffect(() => {
+    const conversationId = new URLSearchParams(search).get('conversation');
+    if (conversationId) setActiveConversationId(conversationId);
+  }, [search]);
   const [messageInput, setMessageInput] = useState('');
   const [draft, setDraft] = useState('');
   const [announceTitle, setAnnounceTitle] = useState('');
@@ -242,17 +245,16 @@ function Workspace({ profile, identity }: WorkspaceProps) {
   const [notice, setNotice] = useState('');
   const client = useQueryClient();
   const owner = profile.role === 'owner';
-  const staff = profile.role === 'staff';
   const currentPath = path === '/' ? '/dashboard' : path.endsWith('/dashboard') ? (owner ? '/owner' : '/dashboard') : path;
   const title = nav.find((item) => item.path === currentPath)?.label ?? 'Dashboard';
   const servicesQuery = useListServices();
-  const conversationsQuery = useListConversations();
+  const conversationsQuery = useListConversations({ query: { refetchInterval: 5000 } });
   const ordersQuery = useListOrders();
   const announcementsQuery = useListAnnouncements();
   const conversations = conversationsQuery.data ?? [];
   const activeConversation = conversations.find((item) => item.id === activeConversationId) ?? conversations[0];
   const messagesQuery = useListConversationMessages(activeConversation?.id ?? '', {
-    query: { enabled: Boolean(activeConversation?.id), queryKey: getListConversationMessagesQueryKey(activeConversation?.id ?? '') },
+    query: { enabled: Boolean(activeConversation?.id), queryKey: getListConversationMessagesQueryKey(activeConversation?.id ?? ''), refetchInterval: 5000 },
   });
   const createOrder = useCreateOrder();
   const updateOrder = useUpdateOrder();
@@ -264,12 +266,11 @@ function Workspace({ profile, identity }: WorkspaceProps) {
   const orders = ordersQuery.data ?? [];
   const announcements = announcementsQuery.data ?? [];
   const messages = messagesQuery.data ?? [];
-  const filteredNav = nav.filter((item) => staff ? item.path === '/dashboard' : (!item.owner || owner));
+  const filteredNav = nav.filter((item) => !item.owner || owner);
   const notify = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(''), 3000); };
   useEffect(() => {
     if (!owner && ['/assistant', '/owner'].includes(currentPath)) setPath('/dashboard', { replace: true });
-    if (staff && currentPath !== '/dashboard') setPath('/staff/dashboard', { replace: true });
-  }, [owner, staff, currentPath, setPath]);
+  }, [owner, currentPath, setPath]);
   if (currentPath === '/assistant' || currentPath === '/owner') {
     if (!owner) return <LoadingScreen label="Opening your workspace"/>;
   }
@@ -335,7 +336,6 @@ function Workspace({ profile, identity }: WorkspaceProps) {
     });
   };
   const page = () => {
-    if (staff) return <StaffDashboard/>;
     switch (currentPath) {
       case '/messages': return <MessagesPage role={profile.role} conversations={conversations} active={activeConversation} messages={messages} messagesLoading={messagesQuery.isLoading} messagesError={messagesQuery.isError} retryMessages={() => void messagesQuery.refetch()} activeId={activeConversation?.id ?? ''} selectConversation={setActiveConversationId} input={messageInput} setInput={setMessageInput} submit={submitMessage} sending={sendMessage.isPending} openConversation={startConversation} opening={openConversation.isPending} conversationsLoading={conversationsQuery.isLoading} conversationsError={conversationsQuery.isError} retryConversations={() => void conversationsQuery.refetch()}/>;
       case '/services': return <ServicesPage services={services} loading={servicesQuery.isLoading} error={servicesQuery.isError} retry={() => void servicesQuery.refetch()} createOrder={(serviceId, details) => createOrder.mutate({ data: { serviceId, details } }, { onSuccess: async () => { await invalidate(getListOrdersQueryKey()); notify('Your service request was sent.'); }, onError: () => notify('The request could not be created.') })} creatingOrder={createOrder.isPending}/>;
@@ -353,7 +353,7 @@ function Workspace({ profile, identity }: WorkspaceProps) {
     </aside>
     <div className="ml-0 flex min-h-[100dvh] w-full flex-col md:ml-[250px]">
       <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-white/[.06] bg-[#090d19]/90 px-4 backdrop-blur-xl sm:px-7">
-        <div className="flex items-center gap-3"><button className="btn-quiet rounded-lg p-2 md:hidden" aria-label="Open navigation" data-testid="button-mobile-menu" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={18}/></button><div><div className="display text-lg font-bold tracking-tight">{title}</div><div className="hidden text-[11px] text-slate-500 sm:block">Okenstyles Graphics And Tech <span className="mx-1.5 text-slate-700">/</span> {owner ? 'Admin workspace' : staff ? 'Staff workspace' : 'Customer workspace'}</div></div></div>
+        <div className="flex items-center gap-3"><button className="btn-quiet rounded-lg p-2 md:hidden" aria-label="Open navigation" data-testid="button-mobile-menu" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={18}/></button><div><div className="display text-lg font-bold tracking-tight">{title}</div><div className="hidden text-[11px] text-slate-500 sm:block">Okenstyles Graphics And Tech <span className="mx-1.5 text-slate-700">/</span> {owner ? 'Admin workspace' : 'Customer workspace'}</div></div></div>
         <div className="flex items-center gap-2 sm:gap-3"><div className="hidden max-w-48 truncate text-xs text-slate-400 sm:block" title={identity}>{identity}</div><ProfileAvatar identity={identity}/><SignOutButton/></div>
       </header>
       {mobileMenu && <div className="fixed inset-0 z-40 bg-[#080d18] p-5 md:hidden"><div className="mb-7 flex items-center justify-between"><Brand/><button onClick={() => setMobileMenu(false)} className="btn-quiet rounded-lg p-2" aria-label="Close menu" data-testid="button-close-mobile-menu"><X size={17}/></button></div><nav className="flex flex-col gap-2">{filteredNav.map((item) => <Link key={item.path} onClick={() => setMobileMenu(false)} href={item.path} className="nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300"><item.icon size={18}/>{item.label}<ChevronRight className="ml-auto" size={15}/></Link>)}</nav></div>}
@@ -369,12 +369,6 @@ function SignOutButton() {
 }
 function Brand() {
   return <div className="flex items-center gap-3"><img src={`${basePath}/okenova-mark.png`} alt="OKENOVA logo" className="h-10 w-10 rounded-xl object-cover" /><div><div className="display text-[15px] font-bold tracking-[.15em]">OKENOVA</div><div className="text-[9px] tracking-wide text-slate-500">CONNECT · GROW · SUCCEED</div></div></div>;
-}
-function StaffDashboard() {
-  return <div className="enter mx-auto max-w-3xl space-y-5">
-    <Heading eyebrow="Staff workspace" title="Welcome to OKENOVA" description="Staff access is kept separate from customer and administrator accounts."/>
-    <Card className="p-6 sm:p-8"><div className="flex items-start gap-4"><ShieldCheck className="mt-1 shrink-0 text-sky-300" size={22}/><div><h2 className="display m-0 text-lg font-semibold">No work has been assigned yet</h2><p className="mb-0 mt-2 text-sm leading-relaxed text-slate-400">Your account has no customer conversations or orders assigned. An administrator must provision staff access before those records are available.</p></div></div></Card>
-  </div>;
 }
 function ProfileAvatar({ identity }: { identity: string }) {
   const initials = identity.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';
@@ -506,7 +500,7 @@ function OwnerPage({ services, orders, announcements, conversations, servicesLoa
       <Card className="p-5"><SectionTitle title="Service availability" hint="Changes update the customer catalog."/><DataState loading={servicesLoading} error={servicesError} retry={retryServices} empty={!services.length}>{services.map((service) => <div key={service.id} className="flex items-center gap-3 border-t border-white/[.06] py-3"><div className="min-w-0 flex-1"><div className="text-xs font-semibold">{service.name}</div><div className="mt-1 text-[10px] text-slate-500">{service.available ? 'Visible as available' : 'Marked unavailable'}</div></div><button disabled={savingService} aria-label={`${service.available ? 'Disable' : 'Enable'} ${service.name}`} onClick={() => changeService(service)} className={`relative h-6 w-11 rounded-full ${service.available ? 'bg-sky-400' : 'bg-slate-700'} disabled:opacity-50`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white ${service.available ? 'translate-x-6' : 'translate-x-1'}`}/></button></div>)}</DataState></Card></div>
       <div className="mt-4 grid gap-4 md:grid-cols-2"><Card className="flex items-center justify-between gap-3 p-5"><div><div className="text-sm font-semibold">Review the order queue</div><div className="mt-1 text-xs text-slate-500">{orders.length} orders to review.</div></div><Link href="/orders" className="btn-quiet rounded-xl px-3 py-2 text-xs">Open orders</Link></Card><Card className="flex items-center justify-between gap-3 p-5"><div><div className="text-sm font-semibold">Share a customer update</div><div className="mt-1 text-xs text-slate-500">Publish an announcement.</div></div><Link href="/announcements" className="btn-quiet rounded-xl px-3 py-2 text-xs">Compose</Link></Card></div></>}
     {tab === 'services' && <Card className="overflow-hidden"><div className="border-b soft-line p-5"><SectionTitle title="Services" hint="Availability updates appear in the customer catalog."/></div>{services.map((service, index) => <div key={service.id} className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><div className="rounded-xl bg-sky-300/[.08] p-2.5 text-sky-300">{(() => { const Icon = serviceIcon(service, index); return <Icon size={17}/>; })()}</div><div className="flex-1"><div className="text-sm font-semibold">{service.name}</div><div className="mt-1 text-[10px] text-slate-500">{service.priceLabel || 'Ask for a quote'} · {service.available ? 'Available' : 'Unavailable'}</div></div><button disabled={savingService} onClick={() => changeService(service)} className="btn-quiet rounded-lg px-3 py-2 text-[10px] font-semibold disabled:opacity-50">{service.available ? 'Set unavailable' : 'Set available'}</button></div>)}</Card>}
-    {tab === 'conversations' && <Card className="overflow-hidden"><div className="border-b soft-line p-5"><SectionTitle title="Customer conversations" hint="Every thread is private to its customer and the business owner."/></div>{conversations.length ? conversations.map((conversation) => <Link key={conversation.id} href="/messages" className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><Avatar name={conversation.customerName || 'Customer'}/><div className="min-w-0 flex-1"><div className="text-sm font-semibold">{conversation.customerName || 'Customer'}</div><div className="mt-1 truncate text-xs text-slate-500">{conversation.lastMessage || 'No messages yet'}</div></div><span className="btn-quiet rounded-lg px-3 py-2 text-[10px] font-semibold">Open thread</span></Link>) : <div className="p-4"><Empty title="No conversations yet" text="Customer conversations will appear here when opened."/></div>}</Card>}
+    {tab === 'conversations' && <Card className="overflow-hidden"><div className="border-b soft-line p-5"><SectionTitle title="Customer conversations" hint="Every thread is private to its customer and the business owner."/></div>{conversations.length ? conversations.map((conversation) => <Link key={conversation.id} href={`/messages?conversation=${encodeURIComponent(conversation.id)}`} className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><Avatar name={conversation.customerName || 'Customer'}/><div className="min-w-0 flex-1"><div className="text-sm font-semibold">{conversation.customerName || 'Customer'}</div><div className="mt-1 truncate text-xs text-slate-500">{conversation.lastMessage || 'No messages yet'}</div></div><span className="btn-quiet rounded-lg px-3 py-2 text-[10px] font-semibold">Open thread</span></Link>) : <div className="p-4"><Empty title="No conversations yet" text="Customer conversations will appear here when opened."/></div>}</Card>}
     <div className="mt-5 flex items-start gap-3 rounded-xl border border-sky-300/10 bg-sky-300/[.035] p-4 text-[11px] leading-relaxed text-slate-500"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-sky-300"/>Owner tools are available according to your server profile. Customer messages remain private to the business.</div>
   </div>;
 }

@@ -11,26 +11,30 @@ async function getOrCreateProfile(clerkUserId: string): Promise<OkenovaUser> {
     .where(eq(okenovaUsers.clerkUserId, clerkUserId))
     .limit(1);
 
-  if (existing) return existing;
-
+  // Revalidate server-owned identity even for existing profiles so stale roles
+  // cannot retain privileges after an email or owner configuration change.
   const clerkUser = await clerkClient.users.getUser(clerkUserId);
   const primaryEmail = clerkUser.emailAddresses.find(
     (address) => address.id === clerkUser.primaryEmailAddressId,
   );
-  const ownerRole = roleForVerifiedEmail(
+  const role = roleForVerifiedEmail(
     primaryEmail?.emailAddress,
     primaryEmail?.verification?.status === "verified",
     process.env.OKENOVA_OWNER_EMAIL,
   );
-  const role =
-    ownerRole === "owner"
-      ? ownerRole
-      : clerkUser.publicMetadata.okenovaRole === "staff"
-        ? "staff"
-        : "customer";
   const displayName =
     [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
     null;
+
+  if (existing) {
+    if (existing.role === role && existing.displayName === displayName) return existing;
+    const [updated] = await db.update(okenovaUsers)
+      .set({ role, displayName })
+      .where(eq(okenovaUsers.id, existing.id))
+      .returning();
+    if (!updated) throw new Error("Unable to synchronize authenticated profile.");
+    return updated;
+  }
 
   const [created] = await db
     .insert(okenovaUsers)

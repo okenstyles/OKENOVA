@@ -22,7 +22,7 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetCurrentUserResponse = zod.object({
   "id": zod.string().uuid(),
-  "role": zod.enum(['customer', 'owner', 'staff']),
+  "role": zod.enum(['customer', 'owner']),
   "displayName": zod.string().nullable()
 })
 
@@ -114,7 +114,7 @@ export const ListConversationMessagesResponseItem = zod.object({
   "id": zod.string().uuid(),
   "conversationId": zod.string().uuid(),
   "senderId": zod.string().uuid(),
-  "senderRole": zod.enum(['customer', 'owner', 'staff']),
+  "senderRole": zod.enum(['customer', 'owner']),
   "body": zod.string(),
   "createdAt": zod.coerce.date()
 })
@@ -140,7 +140,7 @@ export const SendConversationMessageResponse = zod.object({
   "id": zod.string().uuid(),
   "conversationId": zod.string().uuid(),
   "senderId": zod.string().uuid(),
-  "senderRole": zod.enum(['customer', 'owner', 'staff']),
+  "senderRole": zod.enum(['customer', 'owner']),
   "body": zod.string(),
   "createdAt": zod.coerce.date()
 })

@@ -19,7 +19,6 @@ export type UserProfileRole = typeof UserProfileRole[keyof typeof UserProfileRol
 export const UserProfileRole = {
   customer: 'customer',
   owner: 'owner',
-  staff: 'staff',
 } as const;
 
 export interface UserProfile {
@@ -80,7 +79,6 @@ export type ConversationMessageSenderRole = typeof ConversationMessageSenderRole
 export const ConversationMessageSenderRole = {
   customer: 'customer',
   owner: 'owner',
-  staff: 'staff',
 } as const;
 
 export interface ConversationMessage {

@@ -1,4 +1,4 @@
-export type OkenovaRole = "customer" | "owner" | "staff";
+export type OkenovaRole = "customer" | "owner";
 
 export function roleForVerifiedEmail(
   email: string | null | undefined,
