@@ -14,3 +14,17 @@ mtime_ms = 1793220917210
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/e39f5d99-2b96-4a7a-9a6d-4f6d38ae0b58/ece9a7f7-458f-430a-9506-28bf51310df3"
 storage_version_token = "1793220942774745"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "C7jnQYcopYMHyZhISoGWI"
+uri = "file://generated-artifacts/android/OKENOVA-1.0.0-play-upload.aab"
+type = "unspecified"
+title = "OKENOVA Play Store upload bundle — 1.0.0"
+description = "Signed Android App Bundle for uploading to Google Play Console. SHA-256 signing certificate matches the project upload key. Not yet uploaded, reviewed, or published."
+logical_id = "1f12920e-0c3d-4888-ac62-80c517988670"
+content_hash = "sha256:ba484c46331cde2bef4a360bf11d2800b2fb10c77b236bcaceb91263af067842"
+size = 3057188
+mtime_ms = 1793221866525
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/1f12920e-0c3d-4888-ac62-80c517988670/3367d8cc-e9ca-4d1c-9344-3944fa56f957"
+storage_version_token = "1793221930259290"
+content_type = "application/octet-stream"

@@ -33,6 +33,20 @@ Increment versionCode and versionName in app/build.gradle for future APK release
 update twa-manifest.json and the output filename, and use the same signing key.
 Ordinary website updates do not require a new APK.
 
+For Play Console, run `bash android/okenova/build-play-bundle.sh`. This builds and
+verifies `generated-artifacts/android/OKENOVA-1.0.0-play-upload.aab`, signed with
+the same private key as the APK. When enabling Play App Signing, provide this
+certificate as the upload key; Google will generate a separate app-signing key.
+After Play Console provides that app-signing certificate's SHA-256 fingerprint,
+add it to `.well-known/assetlinks.json` and publish the website update. Retain
+the upload key for future uploads.
+
+An AAB is only the upload package, not an approved store release. Play Console
+still requires account identity/organization verification, a store listing,
+privacy policy, app-content and data-safety declarations, screenshots, and any
+testing requirement assigned to the account. Review the live Play Console
+checklist before submission.
+
 ## Required publishing step
 
 Publish the web app containing public/.well-known/assetlinks.json.
