@@ -29,4 +29,4 @@ channel = "stable-25_05"
 packages = ["jdk17"]
 
 [objectStorage]
-defaultBucketID = "replit-objstore-7d929f65-67f7-4dbf-8728-85347ab81855"
+defaultBucketID = "replit-objstore-55815526-ad3f-407c-8205-9f634a2daa0f"
