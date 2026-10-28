@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
@@ -238,6 +238,8 @@ function Workspace({ profile, identity }: WorkspaceProps) {
     if (conversationId) setActiveConversationId(conversationId);
   }, [search]);
   const [messageInput, setMessageInput] = useState('');
+  const [submittingMessage, setSubmittingMessage] = useState(false);
+  const messageSubmitLock = useRef(false);
   const [draft, setDraft] = useState('');
   const [announceTitle, setAnnounceTitle] = useState('');
   const [announceBody, setAnnounceBody] = useState('');
@@ -252,7 +254,13 @@ function Workspace({ profile, identity }: WorkspaceProps) {
   const ordersQuery = useListOrders();
   const announcementsQuery = useListAnnouncements();
   const conversations = conversationsQuery.data ?? [];
-  const activeConversation = conversations.find((item) => item.id === activeConversationId) ?? conversations[0];
+  const activeConversation = activeConversationId
+    ? conversations.find((item) => item.id === activeConversationId)
+    : conversations[0];
+  // Pin the recipient: polling can reorder the inbox while the admin is typing.
+  useEffect(() => {
+    if (!activeConversationId && activeConversation) setActiveConversationId(activeConversation.id);
+  }, [activeConversationId, activeConversation]);
   const messagesQuery = useListConversationMessages(activeConversation?.id ?? '', {
     query: { enabled: Boolean(activeConversation?.id), queryKey: getListConversationMessagesQueryKey(activeConversation?.id ?? ''), refetchInterval: 5000 },
   });
@@ -286,17 +294,32 @@ function Workspace({ profile, identity }: WorkspaceProps) {
     },
     onError: () => notify('Unable to open a conversation right now. Please try again.'),
   });
-  const submitMessage = (event: FormEvent) => {
+  const submitMessage = async (event: FormEvent) => {
     event.preventDefault();
-    if (!activeConversation || !messageInput.trim()) return;
+    if (messageSubmitLock.current || !messageInput.trim() || conversationsQuery.isLoading || conversationsQuery.isError) return;
+    if (owner && !activeConversation) {
+      notify('Choose a customer conversation before sending a reply.');
+      return;
+    }
+    messageSubmitLock.current = true;
+    setSubmittingMessage(true);
+    const originalInput = messageInput;
     const body = messageInput.trim();
-    sendMessage.mutate({ conversationId: activeConversation.id, data: { body } }, {
-      onSuccess: async () => {
-        setMessageInput('');
-        await invalidate(getListConversationMessagesQueryKey(activeConversation.id), getListConversationsQueryKey());
-      },
-      onError: () => notify('Your message could not be sent. Please try again.'),
-    });
+    try {
+      // The server derives the customer identity; no recipient identity is supplied.
+      const conversation = activeConversation ?? await openConversation.mutateAsync(undefined);
+      setActiveConversationId(conversation.id);
+      client.setQueryData<Conversation[]>(getListConversationsQueryKey(), (existing = []) =>
+        existing.some((item) => item.id === conversation.id) ? existing : [conversation, ...existing]);
+      await sendMessage.mutateAsync({ conversationId: conversation.id, data: { body } });
+      setMessageInput((current) => current === originalInput ? '' : current);
+      await invalidate(getListConversationMessagesQueryKey(conversation.id), getListConversationsQueryKey());
+    } catch {
+      notify('Your message could not be sent. Your draft is saved here; please try again.');
+    } finally {
+      messageSubmitLock.current = false;
+      setSubmittingMessage(false);
+    }
   };
   const changeOrderStatus = (orderId: string, status: Order['status']) => updateOrder.mutate({ orderId, data: { status } }, {
     onSuccess: () => void invalidate(getListOrdersQueryKey()),
@@ -337,7 +360,7 @@ function Workspace({ profile, identity }: WorkspaceProps) {
   };
   const page = () => {
     switch (currentPath) {
-      case '/messages': return <MessagesPage role={profile.role} conversations={conversations} active={activeConversation} messages={messages} messagesLoading={messagesQuery.isLoading} messagesError={messagesQuery.isError} retryMessages={() => void messagesQuery.refetch()} activeId={activeConversation?.id ?? ''} selectConversation={setActiveConversationId} input={messageInput} setInput={setMessageInput} submit={submitMessage} sending={sendMessage.isPending} openConversation={startConversation} opening={openConversation.isPending} conversationsLoading={conversationsQuery.isLoading} conversationsError={conversationsQuery.isError} retryConversations={() => void conversationsQuery.refetch()}/>;
+      case '/messages': return <MessagesPage role={profile.role} conversations={conversations} active={activeConversation} messages={messages} messagesLoading={messagesQuery.isLoading} messagesError={messagesQuery.isError} retryMessages={() => void messagesQuery.refetch()} activeId={activeConversation?.id ?? ''} selectConversation={setActiveConversationId} input={messageInput} setInput={setMessageInput} submit={submitMessage} sending={submittingMessage || sendMessage.isPending} openConversation={startConversation} opening={openConversation.isPending} conversationsLoading={conversationsQuery.isLoading} conversationsError={conversationsQuery.isError} retryConversations={() => void conversationsQuery.refetch()}/>;
       case '/services': return <ServicesPage services={services} loading={servicesQuery.isLoading} error={servicesQuery.isError} retry={() => void servicesQuery.refetch()} createOrder={(serviceId, details) => createOrder.mutate({ data: { serviceId, details } }, { onSuccess: async () => { await invalidate(getListOrdersQueryKey()); notify('Your service request was sent.'); }, onError: () => notify('The request could not be created.') })} creatingOrder={createOrder.isPending}/>;
       case '/orders': return <OrdersPage orders={orders} role={profile.role} loading={ordersQuery.isLoading} error={ordersQuery.isError} retry={() => void ordersQuery.refetch()} changeStatus={changeOrderStatus} saving={updateOrder.isPending}/>;
       case '/announcements': return <AnnouncementsPage role={profile.role} announcements={announcements} loading={announcementsQuery.isLoading} error={announcementsQuery.isError} retry={() => void announcementsQuery.refetch()} title={announceTitle} setTitle={setAnnounceTitle} body={announceBody} setBody={setAnnounceBody} submit={submitAnnouncement} publishing={createAnnouncement.isPending}/>;
@@ -429,8 +452,12 @@ function MessagesPage(props: {
         <div className="border-t soft-line p-3 text-[10px] leading-relaxed text-slate-500"><ShieldCheck size={13} className="mr-1 inline text-sky-300"/>No customer-to-customer messaging. No online or last-seen status.</div>
       </Card>
       <Card className="flex min-h-[570px] flex-col overflow-hidden"><div className="flex items-center gap-3 border-b soft-line px-4 py-3.5"><Avatar name={props.active ? (props.role === 'owner' ? props.active.customerName || 'Customer' : 'Okenstyles') : 'Okenstyles'}/><div className="min-w-0 flex-1"><div className="text-sm font-semibold">{props.active ? (props.role === 'owner' ? props.active.customerName || 'Customer' : 'Okenstyles Graphics And Tech') : 'Business conversation'}</div><div className="mt-1 text-[10px] text-slate-500">Private conversation</div></div><div className="rounded-lg border border-sky-300/10 bg-sky-300/[.05] px-2 py-1.5 text-[9px] text-sky-200"><ShieldCheck size={11} className="mr-1 inline"/>Private</div></div>
+        {props.role === 'owner' && props.conversations.length > 0 && <div className="border-b soft-line px-4 py-3 md:hidden"><label htmlFor="mobile-message-recipient" className="mb-2 block text-[10px] text-slate-400">Reply to customer</label><select id="mobile-message-recipient" data-testid="select-message-recipient" value={props.activeId} onChange={(event) => props.selectConversation(event.target.value)} className="form-field h-10 w-full rounded-lg px-3 text-xs"><option value="" disabled>Select a conversation</option>{props.conversations.map((conversation) => <option key={conversation.id} value={conversation.id}>{conversation.customerName || 'Customer'} · {conversation.id.slice(0, 8)}</option>)}</select></div>}
         <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5"><DataState loading={props.messagesLoading} error={props.messagesError} retry={props.retryMessages} empty={!props.active || !props.messages.length}>{props.messages.map((message) => { const mine = message.senderRole === ownSender; return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[84%] ${mine ? 'text-right' : ''}`}><div className="mb-1.5 text-[9px] text-slate-600">{mine ? 'You' : props.role === 'owner' ? props.active?.customerName || 'Customer' : 'Okenstyles Graphics And Tech'} · {formatDate(message.createdAt)}</div><div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${mine ? 'rounded-tr-sm bg-gradient-to-br from-[#155b8c] to-[#29478b] text-white' : 'rounded-tl-sm border border-white/[.07] bg-[#111a2c] text-slate-200'}`}>{message.body}</div></div></div>; })}</DataState></div>
-        <div className="border-t soft-line p-3"><form onSubmit={props.submit} className="flex gap-2"><input aria-label="Message" data-testid="input-message-composer" value={props.input} onChange={(e) => props.setInput(e.target.value)} placeholder="Write a message…" className="form-field h-11 min-w-0 flex-1 rounded-xl px-3 text-xs" maxLength={4000} disabled={!props.active}/><button type="submit" aria-label="Send message" data-testid="button-send-message" className="btn-primary flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-40" disabled={!props.input.trim() || !props.active || props.sending}><Send size={16}/></button></form></div>
+        <div className="border-t soft-line p-3">
+          <p id="message-composer-help" role="status" className="mb-2 text-[10px] text-slate-400">{props.conversationsLoading ? 'Loading conversations. You can write your draft now.' : props.conversationsError ? 'Conversations could not load. Your draft will stay here.' : !props.active ? (props.role === 'customer' ? 'Type and send your first message to start a private conversation.' : 'Select a customer conversation to send. New customers appear here after they contact you.') : 'Only you and this conversation’s recipient can see these messages.'}{props.conversationsError && <button type="button" onClick={props.retryConversations} className="ml-2 text-sky-300 underline">Retry</button>}</p>
+          <form onSubmit={props.submit} className="flex gap-2"><input aria-label="Message" aria-describedby="message-composer-help" data-testid="input-message-composer" value={props.input} onChange={(e) => props.setInput(e.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }} placeholder="Write a message…" className="form-field h-11 min-w-0 flex-1 rounded-xl px-3 text-xs" maxLength={4000}/><button type="submit" aria-label="Send message" data-testid="button-send-message" className="btn-primary flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-40" disabled={!props.input.trim() || (props.role === 'owner' && !props.active) || props.sending || props.opening || props.conversationsLoading || props.conversationsError}><Send size={16}/></button></form>
+        </div>
       </Card>
     </div>
   </div>;
