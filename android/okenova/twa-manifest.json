@@ -1,0 +1,42 @@
+{
+  "packageId": "com.okenova.app",
+  "host": "okenova-business-platform--okenstyles.replit.app",
+  "name": "OKENOVA",
+  "launcherName": "OKENOVA",
+  "display": "standalone",
+  "themeColor": "#090D19",
+  "themeColorDark": "#090D19",
+  "navigationColor": "#090D19",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#090D19",
+  "enableNotifications": false,
+  "splashScreenFadeOutDuration": 300,
+  "startUrl": "/",
+  "iconUrl": "https://okenova-business-platform--okenstyles.replit.app/okenova-mark.png",
+  "signingKey": {
+    "path": "../../.local/android-signing/okenova-release.jks",
+    "alias": "okenova"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "unknown",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://okenova-business-platform--okenstyles.replit.app/",
+  "minSdkVersion": 24,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1.0.0"
+}

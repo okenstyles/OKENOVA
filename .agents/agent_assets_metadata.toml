@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "axdGpvv3Zc5ny-l80cna4"
+uri = "file://generated-artifacts/android/OKENOVA-1.0.0.apk"
+type = "unspecified"
+title = "OKENOVA Android APK — 1.0.0"
+description = "Signed APK for Android 7.0+. Opens the existing live OKENOVA app. Signature verified; physical-device installation and authentication testing still required."
+logical_id = "e39f5d99-2b96-4a7a-9a6d-4f6d38ae0b58"
+content_hash = "sha256:afc6a3cfb5432825a1dad7981a001cddc65d47ca3261739f5120f71f8c5b06d5"
+size = 2975114
+mtime_ms = 1793220917210
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/e39f5d99-2b96-4a7a-9a6d-4f6d38ae0b58/ece9a7f7-458f-430a-9506-28bf51310df3"
+storage_version_token = "1793220942774745"
+content_type = "application/octet-stream"

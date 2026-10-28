@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.okenova.app",
+      "sha256_cert_fingerprints": [
+        "4B:8B:D6:68:36:D5:C4:AE:48:33:65:EF:89:44:56:DA:85:46:34:3C:5A:14:65:CC:76:B2:1E:E7:C2:51:3A:36"
+      ]
+    }
+  }
+]

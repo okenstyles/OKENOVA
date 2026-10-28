@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "OKENOVA",
+  "short_name": "OKENOVA",
+  "description": "Private business conversations, creative services and order updates.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090d19",
+  "theme_color": "#090d19",
+  "icons": [
+    { "src": "/okenova-mark.png", "sizes": "768x768", "type": "image/png", "purpose": "any" }
+  ]
+}

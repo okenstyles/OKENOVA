@@ -53,3 +53,10 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+/generated-artifacts/
+/android/okenova/.gradle/
+/android/okenova/app/build/
+/android/okenova/build/
+*.keystore
+*.jks
+/android/okenova/local.properties
