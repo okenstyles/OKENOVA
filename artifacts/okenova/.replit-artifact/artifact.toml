@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "OKENOVA"
+title = "OKENOVΛ"
 description = "A mobile-first business communication and services demo for Okenstyles Graphics And Tech, with sample conversations, service requests, order tracking, announcements, and an owner workspace."
 version = "1.0.0"
 id = "artifacts/okenova"

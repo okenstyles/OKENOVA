@@ -107,8 +107,8 @@ function StartupAnimation() {
     return () => window.clearTimeout(timer);
   }, []);
   if (!visible) return null;
-  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050916] transition-opacity" role="status" aria-label="OKENOVA starting">
-    <video autoPlay muted playsInline preload="auto" className="max-h-[min(74vh,520px)] w-[min(92vw,900px)] object-contain" src={`${basePath}/okenova-intro.mp4`} onError={() => setVisible(false)} aria-label="OKENOVA logo animation"/>
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050916] transition-opacity" role="status" aria-label="OKENOVΛ starting">
+    <video autoPlay muted playsInline preload="auto" className="max-h-[min(74vh,520px)] w-[min(92vw,900px)] object-contain" src={`${basePath}/okenova-intro.mp4`} onError={() => setVisible(false)} aria-label="OKENOVΛ logo animation"/>
     <button type="button" onClick={() => setVisible(false)} className="absolute bottom-6 rounded-full border border-white/15 px-4 py-2 text-xs text-slate-300" data-testid="button-skip-intro">Skip intro</button>
   </div>;
 }
@@ -122,7 +122,7 @@ function ClerkRoutes() {
     signUpUrl={`${basePath}/customer/sign-up`}
     localization={{
       signIn: { start: { title: 'Welcome back', subtitle: 'Your work, conversations and updates in one place.' } },
-      signUp: { start: { title: 'Join Okenova', subtitle: 'Create your customer account to get started.' } },
+      signUp: { start: { title: 'Join OKENOVΛ', subtitle: 'Create your customer account to get started.' } },
     }}
     routerPush={(to) => setLocation(stripBase(to))}
     routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
@@ -190,7 +190,7 @@ function PublicLanding() {
   </div>;
 }
 function AuthFrame({ children }: { children: ReactNode }) {
-  return <div className="app-shell flex min-h-[100dvh] flex-col items-center justify-center gap-7 px-4 py-8"><Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"><Brand/></Link>{children}<p className="max-w-sm text-center text-[11px] leading-relaxed text-slate-500">Okenova keeps your business conversations private and connected to your account.</p></div>;
+  return <div className="app-shell flex min-h-[100dvh] flex-col items-center justify-center gap-7 px-4 py-8"><Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"><Brand/></Link>{children}<p className="max-w-sm text-center text-[11px] leading-relaxed text-slate-500">OKENOVΛ keeps your business conversations private and connected to your account.</p></div>;
 }
 function SignInPage({ audience }: { audience: 'Admin' | 'Customer' }) {
   const path = `/${audience.toLowerCase()}/sign-in`;
@@ -391,7 +391,7 @@ function SignOutButton() {
   return <button onClick={() => void signOut({ redirectUrl: basePath || '/' })} className="btn-quiet rounded-xl px-3 py-2 text-[10px] font-semibold text-slate-300" data-testid="button-sign-out">Sign out</button>;
 }
 function Brand() {
-  return <div className="flex items-center gap-3"><img src={`${basePath}/okenova-mark.png`} alt="OKENOVA logo" className="h-10 w-10 rounded-xl object-cover" /><div><div className="display text-[15px] font-bold tracking-[.15em]">OKENOVA</div><div className="text-[9px] tracking-wide text-slate-500">CONNECT · GROW · SUCCEED</div></div></div>;
+  return <div className="flex items-center gap-3"><img src={`${basePath}/okenova-mark.png`} alt="OKENOVΛ logo" className="h-10 w-10 rounded-xl object-cover" /><div><div className="display text-[15px] font-bold tracking-[.15em]">OKENOVΛ</div><div className="text-[9px] tracking-wide text-slate-500">CONNECT · GROW · SUCCEED</div></div></div>;
 }
 function ProfileAvatar({ identity }: { identity: string }) {
   const initials = identity.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';
