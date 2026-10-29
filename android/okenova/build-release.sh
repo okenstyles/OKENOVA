@@ -19,7 +19,10 @@ TOOLS="$ANDROID_HOME/build-tools/36.0.0"
 "$TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-key-alias okenova \
   --ks-pass env:OKENOVA_ANDROID_KEYSTORE_PASSWORD \
   --key-pass env:OKENOVA_ANDROID_KEYSTORE_PASSWORD \
-  --out "$OUTPUT/OKENOVA-1.0.0.apk" "$OUTPUT/okenova-aligned.apk"
-"$TOOLS/apksigner" verify --verbose --print-certs "$OUTPUT/OKENOVA-1.0.0.apk"
+  --out "$OUTPUT/OKENOVA-1.0.1.apk" "$OUTPUT/okenova-aligned.apk"
+"$TOOLS/apksigner" verify --verbose --print-certs "$OUTPUT/OKENOVA-1.0.1.apk"
+mkdir -p "$ROOT/artifacts/okenova/public/downloads"
+cp "$OUTPUT/OKENOVA-1.0.1.apk" "$ROOT/artifacts/okenova/public/downloads/OKENOVA-1.0.1.apk"
 rm "$OUTPUT/okenova-aligned.apk"
-echo "Signed APK: generated-artifacts/android/OKENOVA-1.0.0.apk"
+echo "Signed APK: generated-artifacts/android/OKENOVA-1.0.1.apk"
+echo "Website download: artifacts/okenova/public/downloads/OKENOVA-1.0.1.apk"

@@ -8,7 +8,7 @@ It is not a WebView, offline client, or independent copy of customer data.
 ## Release identity
 
 - Package: `com.okenova.app`
-- Version: 1.0.0 (version code 1)
+- Version: 1.0.1 (version code 2)
 - Minimum Android: 7.0 (API 24), as required by Android Browser Helper 2.7.4
 - Website: https://okenova-business-platform--okenstyles.replit.app/
 - Fallback: browser Custom Tab if Trusted Web Activity verification is unavailable.
@@ -28,13 +28,15 @@ checkpoints or project forks. Never upload the key to the public website,
 Library, or repository. Losing it prevents signing compatible APK updates.
 Do not generate a replacement for updates. The build script refuses to create keys.
 
-Output: `generated-artifacts/android/OKENOVA-1.0.0.apk` (excluded from Git and deployment).
+Output: `generated-artifacts/android/OKENOVA-1.0.1.apk` (excluded from Git).
+The build script also copies the signed APK to
+`artifacts/okenova/public/downloads/OKENOVA-1.0.1.apk` for the website download.
 Increment versionCode and versionName in app/build.gradle for future APK releases,
-update twa-manifest.json and the output filename, and use the same signing key.
+update twa-manifest.json and the output filenames, and use the same signing key.
 Ordinary website updates do not require a new APK.
 
 For Play Console, run `bash android/okenova/build-play-bundle.sh`. This builds and
-verifies `generated-artifacts/android/OKENOVA-1.0.0-play-upload.aab`, signed with
+verifies `generated-artifacts/android/OKENOVA-1.0.1-play-upload.aab`, signed with
 the same private key as the APK. When enabling Play App Signing, provide this
 certificate as the upload key; Google will generate a separate app-signing key.
 After Play Console provides that app-signing certificate's SHA-256 fingerprint,
