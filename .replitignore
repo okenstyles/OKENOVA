@@ -5,5 +5,8 @@
 .local
 generated-artifacts
 android
+artifacts/okenova-native/android/.gradle
+artifacts/okenova-native/android/**/build
+artifacts/okenova-native/android/local.properties
 *.keystore
 *.jks
