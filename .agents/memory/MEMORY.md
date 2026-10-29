@@ -2,3 +2,4 @@
 - [Product role scope](product-role-scope.md) — The user explicitly removed staff; keep only Admin and Customer despite older staff task suggestions.
 - [Android packaging](android-packaging.md) — Preserve the TWA; keep native IDs Java-safe and build Android with resource-aware Gradle settings.
 - [Expo release-age limits](expo-release-age-limits.md) — Do not bypass package maturity controls when SDK module patches are newer than the firewall allows.
+- [Artifact workflow ports](artifact-workflow-ports.md) — Check whether a healthy prior server still owns a port before restarting or terminating artifact workflows.
