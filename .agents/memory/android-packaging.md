@@ -31,3 +31,9 @@ Replit's clickable asset delivery rejects files above 100 MiB.
 **Why:** A universal APK can build successfully yet still be too large to attach directly, preventing delivery to the user.
 
 **How to apply:** Check the APK size before presentation. For phone-focused test builds, ARM32 and ARM64 targets can exclude emulator-only ABIs; if a universal APK is required, choose a hosting/download route that supports larger files.
+
+Gradle may mark the React Native release JS bundle `UP-TO-DATE` when only `EXPO_PUBLIC_*` values change, leaving a new APK with the previous Clerk configuration.
+
+**Why:** The first 2.0.1 build skipped bundling after the production Clerk key and proxy changed, which would have repeated the account-permissions failure.
+
+**How to apply:** Before a release whose Expo public environment changed, remove the generated release JS bundle and its sourcemap (or force only the bundle task to rerun), then assemble and verify the APK. Avoid a full Gradle clean so native C++ caches remain reusable.

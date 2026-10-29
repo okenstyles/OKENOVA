@@ -70,3 +70,17 @@ mtime_ms = 1793279217480
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/c703658b-0a59-4cae-a16c-d5855f3964ca/3340c03b-4b82-4129-8f9c-aef31e8c4fb5"
 storage_version_token = "1793279243956645"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "cObBP0EZz5Sg-WW8mDVbA"
+uri = "file://generated-artifacts/OKENOVA-Native-2.0.1-test.apk"
+type = "unspecified"
+title = "Download OKENOVΛ Native 2.0.1 APK"
+description = "2.0.1 Android test APK with production Clerk publishable-key configuration and live Clerk proxy. Supports ARM32 and ARM64 phones. Debug-signed; not a Play Store release."
+logical_id = "41845f56-2b24-4a5c-9fb3-015f81ba9a7a"
+content_hash = "sha256:17d4d1a26f7b4eea7eea13c31103a835c25eb3faec84d997e3a9e76b545db559"
+size = 58607717
+mtime_ms = 1793283772044
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/41845f56-2b24-4a5c-9fb3-015f81ba9a7a/d97e493f-c3f8-49f1-b7b2-97afac970c85"
+storage_version_token = "1793283826961684"
+content_type = "application/octet-stream"
