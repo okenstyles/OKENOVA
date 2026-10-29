@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  color-scheme: dark;
+  --background: 226 42% 7%;
+  --foreground: 215 30% 93%;
+  --card: 224 36% 10%;
+  --card-foreground: 215 30% 93%;
+  --border: 222 28% 19%;
+  --primary: 198 100% 50%;
+  --accent: 267 86% 65%;
+  --app-font-sans: 'DM Sans', sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+.display { font-family: 'Space Grotesk', sans-serif; }
+.app-shell {
+  min-height: 100dvh;
+  color: #e8eef9;
+  background: radial-gradient(ellipse at 75% -20%, rgba(33,93,186,.16), transparent 42%), #090d19;
+}
+.panel {
+  background: linear-gradient(145deg, rgba(19,27,47,.92), rgba(13,19,34,.94));
+  border: 1px solid rgba(127,153,205,.15);
+  border-radius: 18px;
+}
+.btn-primary {
+  background: linear-gradient(105deg, #00b5f4, #3477ff);
+  color: #06101e;
+  font-weight: 700;
+  box-shadow: 0 7px 20px rgba(0,153,255,.15);
+}
+.btn-quiet {
+  background: rgba(120,147,198,.09);
+  border: 1px solid rgba(140,167,217,.15);
+}
+.nav-link.active {
+  color: #66d2ff;
+  background: linear-gradient(100deg, rgba(0,170,255,.17), rgba(110,70,255,.08));
+}
+.mobile-nav { display: flex; }
+.main-content { padding: 20px 16px 104px; }

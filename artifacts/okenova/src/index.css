@@ -476,8 +476,15 @@ button { cursor:pointer; }
 @keyframes enter { from { opacity:0; transform:translateY(8px) } to {opacity:1;transform:translateY(0)} }
 @media(max-width:767px) {
   .sidebar{display:none}
-  .mobile-nav{display:flex;padding-bottom:max(12px,env(safe-area-inset-bottom,0px));}
-  .main-content{padding:20px 16px calc(104px + env(safe-area-inset-bottom,0px))!important}
+  .workspace-header{padding-top:max(10px,env(safe-area-inset-top,0px))}
+  .mobile-menu-overlay{padding-top:max(20px,env(safe-area-inset-top,0px));padding-bottom:max(20px,env(safe-area-inset-bottom,0px))}
+  .mobile-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}
+  .mobile-nav-link{position:relative;-webkit-tap-highlight-color:transparent}
+  .mobile-nav-link[aria-current="page"] .mobile-nav-icon{color:#7bdcff;background:linear-gradient(125deg,rgba(0,181,244,.2),rgba(111,78,255,.14));box-shadow:inset 0 0 0 1px rgba(99,205,255,.2)}
+  .mobile-nav-link[aria-current="page"]::before{content:"";position:absolute;top:0;width:22px;height:2px;border-radius:2px;background:#39c8ff}
+  .mobile-nav-label{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mobile-nav-link:focus-visible,.workspace-header button:focus-visible,.mobile-menu-overlay a:focus-visible,.mobile-menu-overlay button:focus-visible{outline:2px solid #69d4ff;outline-offset:2px}
+  .main-content{padding:20px 16px calc(112px + env(safe-area-inset-bottom,0px))!important}
   .chat-layout{grid-template-columns:1fr!important}
   .chat-list{display:none}
 }
