@@ -21,6 +21,8 @@ export type ErrorFallbackProps = {
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const showErrorDetails =
+    __DEV__ || process.env.EXPO_PUBLIC_SHOW_ERROR_DETAILS === 'true';
 
   const [isModalVisible, setIsModalVisible] = useState(false);
 
@@ -49,7 +51,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {__DEV__ ? (
+      {showErrorDetails ? (
         <Pressable
           onPress={() => setIsModalVisible(true)}
           accessibilityLabel="View error details"
@@ -64,6 +66,9 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           ]}
         >
           <Feather name="alert-circle" size={20} color={colors.foreground} />
+          <Text style={{ color: colors.foreground, fontWeight: '600' }}>
+            Error details
+          </Text>
         </Pressable>
       ) : null}
 
@@ -95,7 +100,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         </Pressable>
       </View>
 
-      {__DEV__ ? (
+      {showErrorDetails ? (
         <Modal
           visible={isModalVisible}
           animationType="slide"

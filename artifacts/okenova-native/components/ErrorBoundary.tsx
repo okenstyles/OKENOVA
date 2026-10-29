@@ -29,6 +29,8 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
+    console.error('OKENOVA native render error:', error);
+    console.error('OKENOVA native component stack:', info.componentStack);
     if (typeof this.props.onError === 'function') {
       this.props.onError(error, info.componentStack);
     }

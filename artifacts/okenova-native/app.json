@@ -2,7 +2,7 @@
   "expo": {
     "name": "OKENOVΛ Native",
     "slug": "okenova-native",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "okenova-native",
@@ -13,22 +13,28 @@
     },
     "android": {
       "package": "com.okenova.mobile",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/okenova-mark.png",
         "backgroundColor": "#090D19"
       }
     },
-    "splash": {
-      "image": "./assets/images/okenova-mark.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#090D19"
-    },
     "web": {
       "favicon": "./assets/images/icon.png",
       "output": "static"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/okenova-mark.png",
+          "imageWidth": 92,
+          "resizeMode": "contain",
+          "backgroundColor": "#090D19"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
