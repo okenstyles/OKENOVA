@@ -11,7 +11,7 @@ import {
   WandSparkles, Wrench, X,
 } from 'lucide-react';
 import {
-  getListAnnouncementsQueryKey, getListConversationMessagesQueryKey,
+  getGetCurrentUserQueryKey, getListAnnouncementsQueryKey, getListConversationMessagesQueryKey,
   getListConversationsQueryKey, getListOrdersQueryKey, getListServicesQueryKey,
   useCreateAnnouncement, useCreateOrder, useGetCurrentUser, useListAnnouncements,
   useListConversationMessages, useListConversations, useListOrders, useListServices,
@@ -47,11 +47,11 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: 'w-full flex justify-center',
-    cardBox: 'bg-[#101a2c] rounded-2xl w-[440px] max-w-full overflow-hidden border border-[#2b3b56]',
+    cardBox: 'bg-[#0b1221] rounded-[24px] w-[440px] max-w-full overflow-hidden border border-[#273757] shadow-2xl',
     card: '!shadow-none !border-0 !bg-transparent !rounded-none',
     footer: '!shadow-none !border-0 !bg-transparent !rounded-none',
-    headerTitle: 'text-[#f2f6ff] font-semibold',
-    headerSubtitle: 'text-[#aab8ce]',
+    headerTitle: 'text-[#f2f6ff] font-semibold tracking-[-.03em]',
+    headerSubtitle: 'text-[#aab8ce] leading-relaxed',
     socialButtonsBlockButtonText: 'text-[#e8eef9] font-medium',
     formFieldLabel: 'text-[#c6d2e5]',
     footerActionLink: 'text-[#69d4ff] font-semibold',
@@ -62,9 +62,9 @@ const clerkAppearance = {
     alertText: 'text-[#ffd3dc]',
     logoBox: 'rounded-xl overflow-hidden',
     logoImage: 'rounded-xl',
-    socialButtonsBlockButton: 'border border-[#34425a] bg-[#142139] hover:bg-[#1a2a45]',
-    formButtonPrimary: 'font-semibold text-[#071321]',
-    formFieldInput: 'border-[#34425a] bg-[#0b1425] text-[#e8eef9]',
+    socialButtonsBlockButton: 'border border-[#34425a] bg-[#111d32] hover:bg-[#1a2a45] min-h-12',
+    formButtonPrimary: 'font-semibold text-[#071321] min-h-12',
+    formFieldInput: 'border-[#34425a] bg-[#0b1425] text-[#e8eef9] min-h-12',
     footerAction: 'border-t border-[#2b3b56]',
     dividerLine: 'bg-[#34425a]',
     alert: 'border-[#653444] bg-[#2b1923]',
@@ -91,10 +91,35 @@ type WorkspaceProps = {
 };
 
 function App() {
-  return <TooltipProvider><WouterRouter base={basePath}><ClerkRoutes /></WouterRouter><StartupAnimation/><Toaster /></TooltipProvider>;
+  return <TooltipProvider><WouterRouter base={basePath}><ClerkRoutes /></WouterRouter><Toaster /></TooltipProvider>;
 }
 function StartupAnimation() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [startupLocation] = useLocation();
+  const isProtectedStartupPath = ['/dashboard', '/admin/dashboard', '/customer/dashboard', '/messages', '/services', '/orders', '/announcements', '/assistant', '/owner'].includes(stripBase(startupLocation));
+  const shouldResolveProfile = isProtectedStartupPath || stripBase(startupLocation) === '/';
+  const startupProfile = useGetCurrentUser({
+    query: {
+      enabled: isLoaded && Boolean(isSignedIn) && shouldResolveProfile,
+      queryKey: getGetCurrentUserQueryKey(),
+      retry: false,
+    },
+  });
   const [visible, setVisible] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const [minimumElapsed, setMinimumElapsed] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
+  const exitStartedRef = useRef(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  useEffect(() => {
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setPrefersReducedMotion(motionPreference.matches);
+    motionPreference.addEventListener('change', updatePreference);
+    return () => motionPreference.removeEventListener('change', updatePreference);
+  }, []);
   useEffect(() => {
     try {
       if (sessionStorage.getItem('okenova-intro-seen')) return;
@@ -103,13 +128,59 @@ function StartupAnimation() {
       // Storage can be unavailable in restrictive browser modes.
     }
     setVisible(true);
-    const timer = window.setTimeout(() => setVisible(false), 2200);
-    return () => window.clearTimeout(timer);
+    const minimumTimer = window.setTimeout(() => setMinimumElapsed(true), 4500);
+    return () => window.clearTimeout(minimumTimer);
   }, []);
+  useEffect(() => {
+    if (!visible) return;
+    setTimedOut(false);
+    const timeout = window.setTimeout(() => setTimedOut(true), 15000);
+    return () => window.clearTimeout(timeout);
+  }, [visible, retryToken]);
+  const profileReady = !isSignedIn || !shouldResolveProfile || startupProfile.isSuccess;
+  const initFailed = Boolean(isLoaded && isSignedIn && shouldResolveProfile && startupProfile.isError);
+  const canExit = visible && minimumElapsed && isLoaded && profileReady && !initFailed;
+  useEffect(() => {
+    if (!canExit || exitStartedRef.current) return;
+    exitStartedRef.current = true;
+    setExiting(true);
+    const timer = window.setTimeout(() => setVisible(false), 520);
+    return () => window.clearTimeout(timer);
+  }, [canExit]);
   if (!visible) return null;
-  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050916] transition-opacity" role="status" aria-label="OKENOVΛ starting">
-    <video autoPlay muted playsInline preload="auto" className="max-h-[min(74vh,520px)] w-[min(92vw,900px)] object-contain" src={`${basePath}/okenova-intro.mp4`} onError={() => setVisible(false)} aria-label="OKENOVΛ logo animation"/>
-    <button type="button" onClick={() => setVisible(false)} className="absolute bottom-6 rounded-full border border-white/15 px-4 py-2 text-xs text-slate-300" data-testid="button-skip-intro">Skip intro</button>
+  const loadingFailed = timedOut || initFailed;
+  const retryStartup = () => {
+    setTimedOut(false);
+    setRetryToken((token) => token + 1);
+    if (isLoaded && isSignedIn && shouldResolveProfile) {
+      void startupProfile.refetch();
+      return;
+    }
+    try {
+      sessionStorage.removeItem('okenova-intro-seen');
+    } catch {
+      // The reload still retries Clerk if storage is unavailable.
+    }
+    window.location.reload();
+  };
+  return <div className={`startup-screen ${loadingFailed ? 'startup-screen--error' : ''} ${exiting ? 'startup-screen--exiting' : ''}`} role={loadingFailed ? 'alert' : 'status'} aria-label={loadingFailed ? 'OKENOVΛ startup needs attention' : 'OKENOVΛ starting'} data-testid="startup-splash">
+    <div className="startup-atmosphere" aria-hidden="true"><span className="startup-orbit startup-orbit--outer"/><span className="startup-orbit startup-orbit--inner"/><span className="startup-light startup-light--cyan"/><span className="startup-light startup-light--violet"/><div className="startup-horizon"/></div>
+    {!prefersReducedMotion && <video autoPlay muted playsInline preload="auto" className="startup-film" src={`${basePath}/okenova-intro.mp4`} aria-label="Animated OKENOVΛ emblem"/>}
+    <main className="startup-content">
+      <div className="startup-mark-wrap"><img className="startup-mark" src={`${basePath}/okenova-mark.png`} alt="OKENOVΛ official emblem" data-testid="startup-logo"/></div>
+      <div className="startup-wordmark">OKENOV<span>Λ</span></div>
+      <p className="startup-tagline">Your Business. Your Connections.<br/>One Platform.</p>
+      <div className="startup-bottom" aria-live="polite">
+        {loadingFailed ? <>
+          <p className="startup-error-copy">{initFailed ? "We couldn't confirm your account yet." : "Startup is taking longer than expected."}</p>
+          <button type="button" className="startup-retry" onClick={retryStartup} data-testid="button-retry-startup">Retry connection</button>
+        </> : <>
+          <div className={`startup-progress ${prefersReducedMotion ? 'startup-progress--reduced' : ''}`} aria-hidden="true"><span/></div>
+          <p className="startup-status" data-testid="status-startup">Loading OKENOVΛ…</p>
+          <button type="button" onClick={() => setMinimumElapsed(true)} className="startup-skip" data-testid="button-skip-intro">Skip intro</button>
+        </>}
+      </div>
+    </main>
   </div>;
 }
 function ClerkRoutes() {
@@ -121,7 +192,7 @@ function ClerkRoutes() {
     signInUrl={`${basePath}/customer/sign-in`}
     signUpUrl={`${basePath}/customer/sign-up`}
     localization={{
-      signIn: { start: { title: 'Welcome back', subtitle: 'Your work, conversations and updates in one place.' } },
+      signIn: { start: { title: 'Welcome Back', subtitle: 'Sign in to continue' } },
       signUp: { start: { title: 'Join OKENOVΛ', subtitle: 'Create your customer account to get started.' } },
     }}
     routerPush={(to) => setLocation(stripBase(to))}
@@ -129,6 +200,7 @@ function ClerkRoutes() {
   >
     <QueryClientProvider client={queryClient}>
       <ClerkCacheSync />
+      <StartupAnimation/>
       <RoutedErrorBoundary><Switch>
         <Route path="/" component={PublicLanding} />
         <Route path="/admin/sign-in/*?"><SignInPage audience="Admin"/></Route>
@@ -193,22 +265,31 @@ function PublicLanding() {
   </div>;
 }
 function AuthFrame({ children }: { children: ReactNode }) {
-  return <div className="app-shell flex min-h-[100dvh] flex-col items-center justify-center gap-7 px-4 py-8"><Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"><Brand/></Link>{children}<p className="max-w-sm text-center text-[11px] leading-relaxed text-slate-500">OKENOVΛ keeps your business conversations private and connected to your account.</p></div>;
+  return <main className="auth-stage" data-testid="auth-screen">
+    <div className="auth-light auth-light--one" aria-hidden="true"/><div className="auth-light auth-light--two" aria-hidden="true"/>
+    <div className="auth-inner">
+      <Link href="/" className="auth-brand-link" aria-label="OKENOVΛ home"><Brand/></Link>
+      <div className="auth-caption"><span>OKENSTYLES GRAPHICS AND TECH</span><i aria-hidden="true"/></div>
+      <div className="auth-card">{children}</div>
+      <p className="auth-footnote">Private business conversations, connected to your account.</p>
+      <p className="auth-powered">Powered by Okenstyles Graphics And Tech</p>
+    </div>
+  </main>;
 }
 function SignInPage({ audience }: { audience: 'Admin' | 'Customer' }) {
   const path = `/${audience.toLowerCase()}/sign-in`;
-  return <AuthFrame><div className="w-full max-w-[440px]">
-    <div className="mb-4 text-center"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-sky-300">{audience} access</div><h1 className="display mt-2 text-xl font-semibold text-slate-100">{audience === 'Customer' ? 'Welcome back' : `${audience} sign in`}</h1></div>
+  return <AuthFrame><div className="auth-clerk-wrap" data-testid={`clerk-sign-in-${audience.toLowerCase()}`}>
+    <div className="auth-audience">{audience} access</div>
     <SignIn routing="path" path={`${basePath}${path}`} signUpUrl={`${basePath}/customer/sign-up`} forceRedirectUrl={`${basePath}/dashboard`}/>
   </div></AuthFrame>;
 }
 function SignUpPage() {
-  return <AuthFrame><SignUp routing="path" path={`${basePath}/customer/sign-up`} signInUrl={`${basePath}/customer/sign-in`} forceRedirectUrl={`${basePath}/dashboard`}/></AuthFrame>;
+  return <AuthFrame><div className="auth-clerk-wrap" data-testid="clerk-sign-up"><div className="auth-audience">Customer registration</div><SignUp routing="path" path={`${basePath}/customer/sign-up`} signInUrl={`${basePath}/customer/sign-in`} forceRedirectUrl={`${basePath}/dashboard`}/></div></AuthFrame>;
 }
 function ProtectedWorkspace() {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <LoadingScreen label="Checking your session"/>;
-  if (!isSignedIn) return <Redirect to="/"/>;
+  if (!isSignedIn) return <Redirect to="/customer/sign-in"/>;
   return <WorkspaceLoader/>;
 }
 function WorkspaceLoader() {
