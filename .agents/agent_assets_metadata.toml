@@ -42,3 +42,31 @@ mtime_ms = 1793266805249
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/ee78b4bd-bf95-4a2c-8dab-dce840d6bb33/87923a06-9f96-48a9-bb1b-e6e2f35a5116"
 storage_version_token = "1793269745005422"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "H8C_N9qYojF1e_i1Xm0xc"
+uri = "file://generated-artifacts/OKENOVA-Web-Version-1.apk"
+type = "unspecified"
+title = "OKENOVΛ Version 1 — Website Edition"
+description = "Installable Android APK that opens the existing OKENOVΛ website and requires internet access."
+logical_id = "fa07b303-04a9-4faf-a1db-0c65c82da367"
+content_hash = "sha256:806d1886d8fbfac08eff265c6ad71e2134dedc943ac41063c4261ed2c317ab8a"
+size = 2975114
+mtime_ms = 1793278399391
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/fa07b303-04a9-4faf-a1db-0c65c82da367/2d507783-bce5-476b-949c-3a340ea77882"
+storage_version_token = "1793278407970443"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "ApCssEaddDTcva8qA7FxX"
+uri = "file://generated-artifacts/OKENOVA-Native-2.0.0-test.apk"
+type = "unspecified"
+title = "OKENOVΛ Native 2.0.0 — Test APK"
+description = "Installable Android test build for 32-bit and 64-bit ARM phones. Package com.okenova.mobile; version code 2. This is debug-signed for testing, not a Play Store release."
+logical_id = "c703658b-0a59-4cae-a16c-d5855f3964ca"
+content_hash = "sha256:c8a38f52e11cbad0530bf53733068b5f54ff844bdfafe0100d64e53b582ba5cf"
+size = 58607589
+mtime_ms = 1793279217480
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/c703658b-0a59-4cae-a16c-d5855f3964ca/3340c03b-4b82-4129-8f9c-aef31e8c4fb5"
+storage_version_token = "1793279243956645"
+content_type = "application/octet-stream"
