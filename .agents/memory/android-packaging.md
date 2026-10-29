@@ -2,13 +2,8 @@
 name: Android packaging
 description: User-approved Android packaging and signing continuity constraints.
 ---
-The user chose to package the existing website, not rebuild a native interface.
-Use Trusted Web Activity/browser authentication rather than an embedded WebView.
+The existing TWA is `com.okenova.app` and must remain intact with its original private signing key. The user later chose a separate Expo native app for a browser-independent interface.
 
-**Why:** Preserves the existing interface/backend and avoids embedded-browser OAuth restrictions.
+**Why:** The user’s latest choice supersedes the earlier TWA-only direction, but explicitly preserves the current website and APK.
 
-**How to apply:** Keep the live website as the source of functionality. Browser chrome
-on external authentication origins is intentional. Only owned, verified origins may
-be trusted for toolbar-free rendering. Never regenerate a release key for updates:
-the original private key must be backed up privately, since ignored files are not
-protected by Git checkpoints. Do not publish private signing material as a Library asset.
+**How to apply:** Give the native app a distinct package identity; do not convert or overwrite the TWA. Clerk email/password can be native, while Google OAuth may hand off to the system browser. Replit’s Expo flow previews Android but does not publish Android APKs to Google Play; use an external Android build pipeline for distribution. Never regenerate the existing TWA release key or expose it.

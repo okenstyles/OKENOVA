@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/okenova-native/"
+title = "OKENOVΛ Native"
+description = "A native Android client for the existing OKENOVΛ business platform, providing secure customer/admin access, private messaging, services, orders, and announcements through its existing authenticated API."
+version = "1.0.0"
+id = "artifacts/okenova-native"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/okenova-native/" ]
+localPort = 23456
+
+[services.development]
+run = "pnpm --filter @workspace/okenova-native run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/okenova-native", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/okenova-native", "run", "serve" ]
+
+[services.env]
+PORT = "23456"
+BASE_PATH = "/okenova-native/"
