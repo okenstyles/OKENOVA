@@ -28,3 +28,17 @@ mtime_ms = 1793221866525
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/1f12920e-0c3d-4888-ac62-80c517988670/3367d8cc-e9ca-4d1c-9344-3944fa56f957"
 storage_version_token = "1793221930259290"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Y1MIl1KRl1_0xMRn1NRAk"
+uri = "file://generated-artifacts/OKENOVA-Native-1.0.1-test.apk"
+type = "unspecified"
+title = "OKENOVΛ Native 1.0.1 Test APK"
+description = "58.6 MB installable test APK for ARM64 and ARM32 Android phones. Debug-signed and configured for development Clerk/API services; not a Play Store release."
+logical_id = "ee78b4bd-bf95-4a2c-8dab-dce840d6bb33"
+content_hash = "sha256:02a16f0092a412c5a903242e8d2f09de004fb41f4d32892d98badade2aa75b85"
+size = 58606101
+mtime_ms = 1793266805249
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:58d85f5f-4494-4384-919a-e9ed11565382/ee78b4bd-bf95-4a2c-8dab-dce840d6bb33/e51ae293-13d1-42e6-a516-b4c50556d3d3"
+storage_version_token = "1793266875223160"
+content_type = "application/octet-stream"

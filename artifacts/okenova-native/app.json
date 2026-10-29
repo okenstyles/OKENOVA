@@ -8,11 +8,11 @@
     "scheme": "okenova-native",
     "userInterfaceStyle": "dark",
     "ios": {
-      "bundleIdentifier": "com.okenova.native",
+      "bundleIdentifier": "com.okenova.mobile",
       "supportsTablet": false
     },
     "android": {
-      "package": "com.okenova.native",
+      "package": "com.okenova.mobile",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/okenova-mark.png",

@@ -1,4 +1,4 @@
 - [API rate limiting](okenova-api-rate-limiting.md) — Apply user-scoped limits after authentication instead of grouping traffic by proxy IP.
 - [Product role scope](product-role-scope.md) — The user explicitly removed staff; keep only Admin and Customer despite older staff task suggestions.
-- [Android packaging](android-packaging.md) — Keep the existing TWA and signing key; the user later approved a separate native Expo app.
+- [Android packaging](android-packaging.md) — Preserve the TWA; keep native IDs Java-safe and build Android with resource-aware Gradle settings.
 - [Expo release-age limits](expo-release-age-limits.md) — Do not bypass package maturity controls when SDK module patches are newer than the firewall allows.
