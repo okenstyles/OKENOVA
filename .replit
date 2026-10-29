@@ -30,3 +30,19 @@ packages = ["jdk17"]
 
 [objectStorage]
 defaultBucketID = "replit-objstore-55815526-ad3f-407c-8205-9f634a2daa0f"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 8082
+externalPort = 3001
+
+[[ports]]
+localPort = 19052
+externalPort = 3000
